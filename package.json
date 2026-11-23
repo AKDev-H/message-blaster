@@ -1,0 +1,82 @@
+{
+  "name": "message-blaster",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "setup": "tsx src/index.ts setup",
+    "whatsapp:connect": "tsx src/index.ts whatsapp:connect",
+    "gmail:test": "tsx src/index.ts gmail:test",
+    "gmail:confirm-test": "tsx src/index.ts gmail:confirm-test",
+    "whatsapp:test": "tsx src/index.ts whatsapp:test",
+    "excel:generate": "tsx src/index.ts excel:generate",
+    "campaign:import": "tsx src/index.ts campaign:import",
+    "campaign:preview": "tsx src/index.ts campaign:preview",
+    "campaign:start": "tsx src/index.ts campaign:start",
+    "campaign:pause": "tsx src/index.ts campaign:pause",
+    "campaign:resume": "tsx src/index.ts campaign:resume",
+    "campaign:cancel": "tsx src/index.ts campaign:cancel",
+    "campaign:status": "tsx src/index.ts campaign:status",
+    "campaign:export": "tsx src/index.ts campaign:export",
+    "consent:withdraw": "tsx src/index.ts consent:withdraw",
+    "db:backup": "tsx src/index.ts db:backup",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "campaign:review": "tsx src/index.ts campaign:review",
+    "whatsapp:confirm-test": "tsx src/index.ts whatsapp:confirm-test",
+    "campaign:recover": "tsx src/index.ts campaign:recover",
+    "lint": "eslint --max-warnings 0 eslint.config.mjs cypress.config.mjs src tests web cypress",
+    "format": "npm run lint -- --fix --fix-type layout",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "web": "tsx src/web/index.ts",
+    "cy:server": "rm -rf storage/cypress/cypress.db* storage/cypress/auth* && DATABASE_URL=storage/cypress/cypress.db ATTACHMENTS_DIR=storage/cypress/attachments AUTH_DIR=storage/cypress/auth LOG_DIR=storage/cypress/logs GMAIL_USER= GMAIL_APP_PASSWORD= WEB_PORT=4319 DRY_RUN=true GROQ_API_KEY=cypress-stub tsx src/web/index.ts",
+    "cy:open": "start-server-and-test cy:server http-get://127.0.0.1:4319 'cypress open --e2e'",
+    "test:e2e": "start-server-and-test cy:server http-get://127.0.0.1:4319 'cypress run --e2e'"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "commander": "15.1.0",
+    "dotenv": "18.0.10",
+    "exceljs": "4.4.0",
+    "html-to-text": "10.0.1",
+    "libphonenumber-js": "1.13.17",
+    "lucide": "1.77.0",
+    "mammoth": "1.13.0",
+    "nodemailer": "10.6.1",
+    "pdf-lib": "1.17.1",
+    "pino": "10.4.0",
+    "qrcode": "1.5.4",
+    "qrcode-terminal": "0.12.0",
+    "sanitize-html": "2.18.2",
+    "tsx": "4.23.15",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@babel/core": "8.1.3",
+    "@babel/eslint-parser": "8.1.2",
+    "@eslint/js": "10.0.1",
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource-variable/instrument-sans": "5.3.0",
+    "@stylistic/eslint-plugin": "6.0.1",
+    "@types/html-to-text": "9.0.4",
+    "@types/node": "24.19.2",
+    "@types/nodemailer": "8.0.2",
+    "@types/qrcode": "1.5.6",
+    "@types/qrcode-terminal": "0.12.2",
+    "@types/sanitize-html": "2.16.2",
+    "cypress": "16.3.0",
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
+    "jszip": "3.10.2",
+    "start-server-and-test": "3.0.13",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
+}

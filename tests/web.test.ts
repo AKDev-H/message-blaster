@@ -1,0 +1,289 @@
+import assert from 'node:assert/strict';
+import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
+import ExcelJS from 'exceljs';
+import { loadEnv } from '../src/config/env.js';
+import { openDatabase } from '../src/database/connection.js';
+import { Store } from '../src/services/message.service.js';
+import { startWebServer } from '../src/web/server.js';
+
+interface CampaignProgress {
+    id: string;
+    state: string;
+    runActive?: boolean;
+    processing: number;
+    completed: number;
+    failed: number;
+    unknown: number;
+    queued: number;
+    skipped: number;
+}
+
+async function watchProgress(url: string, cleanup: (callback: () => void) => void) {
+    const abort = new AbortController();
+    cleanup(() => abort.abort());
+    const stream = await fetch(`${url}/api/events`, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(25_000)]) });
+    assert.equal(stream.status, 200);
+    const reader = stream.body!.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    return async (match: (campaign: CampaignProgress) => boolean) => {
+        for (;;) {
+            const boundary = buffer.indexOf('\n\n');
+            if (boundary !== -1) {
+                const data = buffer.slice(0, boundary).split('\n').find(line => line.startsWith('data: '));
+                buffer = buffer.slice(boundary + 2);
+                if (data) {
+                    const { campaigns } = JSON.parse(data.slice(6)) as { campaigns: CampaignProgress[] };
+                    const campaign = campaigns.find(item => item.id === 'outreach');
+                    if (campaign && match(campaign)) return campaign;
+                }
+                continue;
+            }
+            const chunk = await reader.read();
+            if (chunk.done) throw new Error('Progress stream ended before the expected update.');
+            buffer += chunk.value;
+        }
+    };
+}
+
+test('dashboard uploads, edits, streams progress, pauses, retries, cancels and deletes with a simulated sender', { timeout: 30_000 }, async context => {
+    const directory = await mkdtemp(join(tmpdir(), 'message-blaster-web-'));
+    const originalNodeOptions = process.env.NODE_OPTIONS;
+    const mockPath = join(directory, 'smtp.mjs');
+    const failedOnce = join(directory, 'failed-once');
+    const releaseFirst = join(directory, 'release-first');
+    await writeFile(mockPath, `
+        import nodemailer from ${JSON.stringify(import.meta.resolve('nodemailer'))};
+        import { access, writeFile } from 'node:fs/promises';
+        import { setTimeout } from 'node:timers/promises';
+        nodemailer.createTransport = () => ({
+            verify: async () => true,
+            sendMail: async message => {
+                if (message.to === 'ari@example.com') {
+                    for (let poll = 0; !await access(${JSON.stringify(releaseFirst)}).then(() => true, () => false); poll++) {
+                        if (poll === 200) throw new Error('The test did not release the first submission');
+                        await setTimeout(50);
+                    }
+                }
+                if (message.to === 'retry@example.com') {
+                    try {
+                        await writeFile(${JSON.stringify(failedOnce)}, '', { flag: 'wx' });
+                        throw new Error('Simulated lost SMTP response');
+                    } catch (error) {
+                        if (error.code !== 'EEXIST') throw error;
+                    }
+                }
+                return { accepted: [message.to] };
+            },
+        });
+    `);
+    const importMock = `--import=${pathToFileURL(mockPath).href}`;
+    process.env.NODE_OPTIONS = [originalNodeOptions, importMock].filter(Boolean).join(' ');
+    const env = {
+        ...loadEnv(),
+        DATABASE_URL: join(directory, 'dashboard.db'),
+        ATTACHMENTS_DIR: join(directory, 'pdf'),
+        LOG_DIR: join(directory, 'logs'),
+        GMAIL_USER: 'sender@example.com',
+        GMAIL_APP_PASSWORD: 'abcdefghijklmnop',
+        DRY_RUN: false,
+        SENDER_CONCURRENCY: 1,
+        MAX_MESSAGES_PER_RUN: 100,
+        MESSAGE_DELAY_MS: 100,
+    };
+    {
+        using db = openDatabase(env.DATABASE_URL);
+        const store = new Store(db);
+        store.importCampaign('test-setup', [{
+            rowNumber: 1, clientId: 'test', clientName: 'Test', phone: '', email: 'test@example.com',
+            subject: 'Test', message: 'Test', pdfFilename: '', consentStatus: 'Opted In',
+        }], true, 'gmail');
+        store.bindAccount('test-setup', 'gmail:sender@example.com');
+        store.start('test-setup');
+        const record = store.peek('test-setup')!;
+        store.claim('test-setup', record.id, 'test-setup-message');
+        store.finish(record.id, 'SENT');
+        store.settleCampaign('test-setup');
+        store.confirmTest('test-setup');
+    }
+
+    let dashboard: Awaited<ReturnType<typeof startWebServer>> | undefined;
+    let stopProgress: (() => void) | undefined;
+    context.after(async () => {
+        stopProgress?.();
+        await dashboard?.close();
+        if (originalNodeOptions === undefined) delete process.env.NODE_OPTIONS;
+        else process.env.NODE_OPTIONS = originalNodeOptions;
+        await rm(directory, { recursive: true, force: true });
+    });
+    dashboard = await startWebServer(env, 0);
+    const { url } = dashboard;
+    const request = (path: string, options?: RequestInit) => fetch(`${url}${path}`, options);
+    const command = (action: string, body: Record<string, unknown> = {}, id = 'outreach') => request(`/api/campaigns/${id}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    assert.equal((await request('/', { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 200);
+    assert.equal((await request('/api/campaigns', { headers: { Origin: 'https://example.com' } })).status, 403);
+
+    const sample = await request('/api/template?channel=gmail');
+    assert.match(sample.headers.get('content-disposition') ?? '', /gmail-sample\.xlsx/);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await sample.arrayBuffer());
+    const sheet = workbook.worksheets[0]!;
+    assert.equal(sheet.getCell('C1').value, 'Email Address');
+    assert.equal(sheet.getCell('F1').value, 'Attachment');
+    assert.equal(sheet.actualRowCount, 1, 'the dashboard template has headers only');
+    sheet.addRow(['C1', 'Ari', 'ari@example.com', '', '', '', 'Opted In']);
+    sheet.addRow(['C2', 'Ben', 'retry@example.com', '', '', '', 'Opted In']);
+    sheet.addRow(['C3', 'Casey', 'casey@example.com', '', '', '', 'Opted In']);
+
+    const pdf = new FormData();
+    pdf.set('file', new Blob([Uint8Array.from(await readFile('tests/fixtures/sample-document.pdf'))]), 'sales.pdf');
+    assert.equal((await request('/api/attachments', { method: 'POST', body: pdf })).status, 201);
+    assert.equal((await request('/api/attachments', { method: 'POST', body: pdf })).status, 409);
+    const invalidUpload = await request('/api/attachments', {
+        method: 'POST',
+        body: 'not multipart',
+        headers: { 'content-type': 'text/plain' },
+    });
+    assert.equal(invalidUpload.status, 415);
+
+    const upload = new FormData();
+    upload.set('id', 'outreach');
+    upload.set('channel', 'gmail');
+    upload.set('script', 'Hello {{client_name}}');
+    upload.set('subject', 'Your brochure');
+    upload.set('attachment', 'sales.pdf');
+    upload.set('workbook', new Blob([await workbook.xlsx.writeBuffer()]), 'clients.xlsx');
+
+    const readProgress = await watchProgress(url, callback => { stopProgress = callback; });
+    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
+    const edit = new FormData();
+    edit.set('script', 'Hi {{client_name}}, here is your updated brochure.');
+    edit.set('subject', 'New brochure');
+    edit.set('attachment', 'sales.pdf');
+    assert.equal((await request('/api/campaigns/outreach/draft', { method: 'PUT', body: edit })).status, 200);
+    const before = await (await request('/api/campaigns/outreach')).json();
+    assert.equal(before.rows[0].message, 'Hi Ari, here is your updated brochure.');
+    assert.equal(before.rows[0].pdfFilename, 'sales.pdf');
+    assert.equal(before.rows[0].subject, 'New brochure');
+    await readProgress(item => item.state === 'Ready' && item.queued === 3);
+
+    assert.equal((await command('start', { approve: 'wrong' })).status, 409);
+    assert.equal((await command('start', { approve: 'outreach' })).status, 202);
+    await readProgress(item => item.processing === 1);
+    assert.equal((await command('pause')).status, 200);
+    assert.equal((await request('/api/campaigns/outreach', { method: 'DELETE' })).status, 409);
+    await writeFile(releaseFirst, '');
+    const paused = await readProgress(item => item.state === 'Paused' && !item.runActive && item.processing === 0);
+    assert.equal(paused.completed, 1);
+    assert.equal(paused.queued, 2);
+    assert.equal((await request('/api/campaigns/outreach/draft', { method: 'PUT', body: edit })).status, 409);
+
+    assert.equal((await command('resume', { approve: 'outreach' })).status, 202);
+    const finished = await readProgress(item => item.state === 'Completed' && !item.runActive);
+    assert.equal(finished.completed, 2);
+    assert.equal(finished.unknown, 1);
+    assert.equal((await command('retry')).status, 409);
+    const after = await (await request('/api/campaigns/outreach')).json();
+    const unknown = after.rows.find((row: { status: string }) => row.status === 'UNKNOWN');
+    assert.equal((await command('review', { recordId: unknown.id, outcome: 'FAILED', note: 'Verified in the simulated sender.' })).status, 200);
+    assert.equal((await command('retry')).status, 200);
+    assert.equal((await command('resume', { approve: 'outreach' })).status, 202);
+    const retried = await readProgress(item => item.completed === 3 && !item.runActive);
+    assert.equal(retried.failed, 0);
+    assert.equal((await request('/api/campaigns/outreach/export')).status, 200);
+    assert.equal((await request('/api/campaigns/outreach', { method: 'DELETE' })).status, 204);
+    assert.equal((await request('/api/campaigns/outreach')).status, 404);
+
+    upload.set('id', 'cancel-test');
+    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
+    assert.equal((await command('start', { approve: 'cancel-test' }, 'cancel-test')).status, 202);
+    assert.equal((await command('cancel', {}, 'cancel-test')).status, 200);
+    const cancelled = await (await request('/api/campaigns/cancel-test')).json();
+    assert.equal(cancelled.campaign.state, 'Cancelled');
+    assert.equal(cancelled.campaign.skipped, 3);
+
+    for (const asset of ['/campaigns.mjs', '/compose.mjs', '/confirm.mjs', '/editor.mjs', '/ui.mjs']) {
+        assert.equal((await request(asset)).status, 200, asset);
+    }
+
+    const duplicate = await request('/api/campaigns', { method: 'POST', body: upload });
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json()).field, 'id');
+
+    upload.set('id', 'rich-script');
+    upload.set('script', 'ignored when formatted');
+    upload.set('scriptHtml', '<p>Hi <b>{{client_name}}</b></p><script>alert(1)</script><ul><li onclick="x()">Fast</li></ul>');
+    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
+    const rich = await (await request('/api/campaigns/rich-script')).json();
+    assert.equal(rich.draft.scriptHtml, '<p>Hi <b>{{client_name}}</b></p><ul><li>Fast</li></ul>');
+    assert.equal(rich.rows[0].messageHtml, '<p>Hi <b>Ari</b></p><ul><li>Fast</li></ul>');
+    assert.match(rich.rows[0].message, /^Hi Ari\n+ \* Fast$/u);
+
+    const combinedSample = new ExcelJS.Workbook();
+    await combinedSample.xlsx.load(await (await request('/api/template?channel=both')).arrayBuffer());
+    const combinedSheet = combinedSample.worksheets[0]!;
+    const headers = (combinedSheet.getRow(1).values as unknown[]).filter(Boolean);
+    assert.ok(headers.includes('Email Address') && headers.includes('Phone Number'));
+    assert.equal(combinedSheet.actualRowCount, 1);
+    combinedSheet.addRow(['C1', 'Ari', 'ari@example.com', '+60123456789', 'Hello', '', '', 'Opted In']);
+    combinedSheet.addRow(['C2', 'Ben', 'ben@example.com', '', 'Hello', '', '', 'Opted In']);
+    const both = new FormData();
+    both.set('id', 'launch');
+    both.append('channel', 'gmail');
+    both.append('channel', 'whatsapp');
+    both.set('script', 'Hi {{client_name}}');
+    both.set('workbook', new Blob([await combinedSample.xlsx.writeBuffer()]), 'both.xlsx');
+    const created = await request('/api/campaigns', { method: 'POST', body: both });
+    assert.equal(created.status, 201);
+    assert.deepEqual((await created.json()).ids, ['launch-gmail', 'launch-whatsapp']);
+    assert.equal((await (await request('/api/campaigns/launch-gmail')).json()).campaign.total, 2);
+    const whatsapp = await (await request('/api/campaigns/launch-whatsapp')).json();
+    assert.equal(whatsapp.campaign.total, 1);
+    assert.equal(whatsapp.rows[0].message, 'Hi Ari');
+
+    // A duplicate in either channel rejects the whole multi-channel import.
+    both.set('id', 'launch');
+    assert.equal((await request('/api/campaigns', { method: 'POST', body: both })).status, 409);
+    both.delete('channel');
+    const missing = await request('/api/campaigns', { method: 'POST', body: both });
+    assert.equal((await missing.json()).field, 'channel');
+
+    // Settings: saved values apply immediately and the App Password is never returned.
+    const put = (path: string, body: unknown) => request(path, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const badGmail = await put('/api/settings/gmail', { user: 'sender@gmail.com', password: 'short' });
+    assert.equal((await badGmail.json()).field, 'gmailPassword');
+    const savedGmail = await (await put('/api/settings/gmail', { user: 'Sender@Gmail.com', password: 'abcd efgh ijkl mnop' })).json();
+    assert.deepEqual(savedGmail.gmail, { user: 'sender@gmail.com', passwordSet: true });
+    assert.doesNotMatch(JSON.stringify(savedGmail), /abcdefghijklmnop/u);
+    assert.equal((await put('/api/settings/gmail', { user: 'other@gmail.com', password: '' })).status, 200);
+    const sending = await (await put('/api/settings/sending', { country: 'sg', delaySeconds: 2.5 })).json();
+    assert.deepEqual(sending.sending, { country: 'SG', delaySeconds: 2.5 });
+    assert.equal(sending.whatsapp.status, 'unlinked');
+    assert.equal((await (await put('/api/settings/sending', { country: 'XX', delaySeconds: 1 })).json()).field, 'country');
+
+    // Attachments: any common format uploads and is served for the viewer; programs are refused.
+    const note = new FormData();
+    note.set('file', new Blob(['Quarterly notes']), 'notes.txt');
+    assert.equal((await request('/api/attachments', { method: 'POST', body: note })).status, 201);
+    const blocked = new FormData();
+    blocked.set('file', new Blob(['MZ']), 'setup.exe');
+    assert.equal((await request('/api/attachments', { method: 'POST', body: blocked })).status, 400);
+    const listed = await (await request('/api/attachments')).json();
+    assert.deepEqual(listed.files.map((file: { name: string }) => file.name), ['notes.txt', 'sales.pdf']);
+    const served = await request('/api/attachments/notes.txt');
+    assert.equal(await served.text(), 'Quarterly notes');
+    assert.match(served.headers.get('content-type') ?? '', /^text\/plain/u);
+    assert.match(served.headers.get('content-security-policy') ?? '', /sandbox/u);
+    assert.match((await request('/api/attachments/notes.txt?download')).headers.get('content-disposition') ?? '', /^attachment/u);
+    assert.equal((await request('/api/attachments/missing.pdf')).status, 404);
+    assert.equal((await request('/api/attachments/..%2Fsecret.txt')).status, 404);
+});

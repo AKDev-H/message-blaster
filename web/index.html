@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Campaigns | Message Blaster</title>
+    <link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/vendor/lucide.js"></script>
+    <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to campaigns</a>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="/" aria-label="Message Blaster home">
+                <span class="brand-mark"><i data-icon="send" data-size="15"></i></span>
+                <span class="brand-name">Message Blaster</span>
+            </a>
+            <nav class="topnav" aria-label="Workspace">
+                <a class="nav-item" href="#queue" aria-current="page"><i data-icon="layout-list"></i><span>Campaigns</span></a>
+                <button class="nav-item" type="button" id="open-library"><i data-icon="paperclip"></i><span>Attachments</span></button>
+                <button class="nav-item" type="button" id="open-settings"><i data-icon="settings"></i><span>Settings</span></button>
+            </nav>
+            <div class="topbar-status">
+                <span class="connection" id="connection" role="status"><i></i><span>Connecting…</span></span>
+                <span class="mode-label" id="mode-indicator" title="Sending is turned off. You can import and preview campaigns." hidden>
+                    <i data-icon="eye" data-size="14"></i>Preview mode
+                </span>
+                <button type="button" class="button primary" id="create-campaign"><i data-icon="plus"></i><span>New campaign</span></button>
+            </div>
+        </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+        <section class="overview" aria-labelledby="page-title">
+            <h1 id="page-title">Campaigns</h1>
+            <dl class="metrics" aria-label="Recipients across all campaigns">
+                <div class="metric queued"><dt>Queued</dt><dd id="metric-queued">—</dd></div>
+                <div class="metric processing"><dt>Processing</dt><dd id="metric-processing">—</dd></div>
+                <div class="metric completed"><dt>Completed</dt><dd id="metric-completed">—</dd></div>
+                <div class="metric failed">
+                    <dt>Failed</dt><dd id="metric-failed">—</dd>
+                    <dd class="metric-caption" id="metric-failed-caption" hidden></dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="panel" id="queue" aria-labelledby="queue-heading">
+            <header class="panel-head">
+                <div class="queue-title">
+                    <h2 id="queue-heading">Queue</h2>
+                    <p id="campaign-count">Loading…</p>
+                </div>
+                <div class="filters">
+                    <details class="menu" id="template-menu">
+                        <summary class="button secondary small"><i data-icon="file-spreadsheet"></i><span>Excel template</span><i data-icon="chevron-down" data-size="14"></i></summary>
+                        <div class="menu-list" role="menu" aria-label="Download an empty Excel template">
+                            <a role="menuitem" href="/api/template?channel=gmail" download><i data-brand="gmail" data-size="14"></i><span>Gmail</span></a>
+                            <a role="menuitem" href="/api/template?channel=whatsapp" download><i data-brand="whatsapp" data-size="14"></i><span>WhatsApp</span></a>
+                            <a role="menuitem" href="/api/template?channel=both" download><span class="menu-pair"><i data-brand="gmail" data-size="12"></i><i data-brand="whatsapp" data-size="12"></i></span><span>Gmail + WhatsApp</span></a>
+                        </div>
+                    </details>
+                    <label>
+                        <span class="visually-hidden">Filter by channel</span>
+                        <select id="channel-filter">
+                            <option value="">All channels</option>
+                            <option value="gmail">Gmail</option>
+                            <option value="whatsapp">WhatsApp</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="visually-hidden">Filter by status</span>
+                        <select id="state-filter">
+                            <option value="">All statuses</option>
+                            <option>Draft</option><option>Ready</option><option>Running</option><option>Paused</option>
+                            <option>Completed</option><option>Failed</option><option>Cancelled</option>
+                        </select>
+                    </label>
+                </div>
+            </header>
+            <div class="table-wrap" id="campaign-table" hidden>
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Campaign</th><th scope="col">Status</th><th scope="col">Progress</th>
+                            <th scope="col">Updated</th><th scope="col"><span class="visually-hidden">Details</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="campaign-rows"></tbody>
+                </table>
+            </div>
+            <div class="empty" id="campaign-empty" hidden>
+                <h3 id="empty-heading">No campaigns yet</h3>
+                <p id="empty-copy">Import an Excel workbook to get started.</p>
+                <button type="button" class="button secondary" id="empty-action">New campaign</button>
+            </div>
+        </section>
+
+        <section class="panel details-panel" id="details" aria-labelledby="detail-heading" hidden>
+            <header class="panel-head detail-head">
+                <div class="detail-title">
+                    <button class="icon-button" type="button" id="close-detail" aria-label="Close campaign details"><i data-icon="x"></i></button>
+                    <div>
+                        <div class="detail-heading-row"><h2 id="detail-heading" tabindex="-1"></h2><span id="detail-state"></span></div>
+                        <p class="detail-description" id="detail-description"></p>
+                    </div>
+                </div>
+                <div id="detail-actions" class="actions"></div>
+            </header>
+            <div class="detail-summary" id="detail-summary"></div>
+            <p class="inline-error" id="detail-error" role="alert" hidden></p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Recipient</th><th scope="col">Message preview</th>
+                            <th scope="col">Status</th><th scope="col">Tries</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-rows"></tbody>
+                </table>
+            </div>
+            <footer class="pagination">
+                <button class="icon-button" id="previous-page" type="button" aria-label="Previous page"><i data-icon="chevron-left"></i></button>
+                <span id="page-number"></span>
+                <button class="icon-button" id="next-page" type="button" aria-label="Next page"><i data-icon="chevron-right"></i></button>
+            </footer>
+        </section>
+        <p class="inline-error" id="page-error" role="alert" hidden></p>
+    </main>
+
+    <dialog id="compose" class="dialog compose" aria-labelledby="compose-title">
+        <form id="compose-form" novalidate>
+            <header class="dialog-header">
+                <h2 id="compose-title">New campaign</h2>
+                <button type="button" class="icon-button" data-close aria-label="Close editor"><i data-icon="x"></i></button>
+            </header>
+            <div class="dialog-body compose-grid">
+                <div class="compose-settings">
+                    <div class="field">
+                        <label for="campaign-name">Campaign name</label>
+                        <input id="campaign-name" name="id" required maxlength="64" placeholder="e.g. november-outreach" autocomplete="off" aria-describedby="id-error">
+                        <p class="field-error" id="id-error" aria-live="polite" hidden></p>
+                    </div>
+                    <fieldset class="field channel-field" aria-describedby="channel-hint channel-error">
+                        <legend>Send with</legend>
+                        <div class="channel-options">
+                            <label class="channel-option">
+                                <input type="checkbox" name="channel" value="gmail" checked>
+                                <i data-brand="gmail"></i>
+                                <span>Gmail</span>
+                            </label>
+                            <label class="channel-option">
+                                <input type="checkbox" name="channel" value="whatsapp">
+                                <i data-brand="whatsapp"></i>
+                                <span>WhatsApp</span>
+                            </label>
+                        </div>
+                        <p class="field-help" id="channel-hint" hidden></p>
+                        <p class="field-error" id="channel-error" aria-live="polite" hidden></p>
+                    </fieldset>
+                    <div class="field">
+                        <div class="label-row">
+                            <span>Recipients</span>
+                            <a id="template-download" class="text-link" href="/api/template?channel=gmail" download><i data-icon="file-spreadsheet" data-size="14"></i><span>Download Excel template</span></a>
+                        </div>
+                        <label class="upload-field">
+                            <i data-icon="upload"></i>
+                            <strong id="workbook-label">Choose an Excel workbook</strong>
+                            <span class="upload-type" aria-hidden="true">.xlsx</span>
+                            <input name="workbook" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required aria-describedby="workbook-error">
+                        </label>
+                        <p class="field-error" id="workbook-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field">
+                        <label for="campaign-attachment">Attachment</label>
+                        <div class="attachment-field">
+                            <select id="campaign-attachment" name="attachment" aria-describedby="attachment-error"><option value="">No attachment</option></select>
+                            <button type="button" class="icon-button bordered" id="attachment-preview" aria-label="Preview the attachment" title="Preview" disabled><i data-icon="eye"></i></button>
+                            <label class="button secondary upload-button">
+                                <i data-icon="upload"></i><span>Upload</span>
+                                <input id="compose-upload" type="file" aria-label="Upload a file and attach it" aria-describedby="attachment-error">
+                            </label>
+                        </div>
+                        <p class="field-error" id="attachment-error" aria-live="polite" hidden></p>
+                    </div>
+                </div>
+
+                <section class="compose-message" aria-labelledby="message-title">
+                    <h3 class="visually-hidden" id="message-title">Message</h3>
+                    <div class="ai-bar" id="ai-bar" hidden>
+                        <label class="visually-hidden" for="ai-prompt">Describe the message for AI to write</label>
+                        <i data-icon="sparkles"></i>
+                        <input id="ai-prompt" maxlength="1000" autocomplete="off" placeholder="Describe the message, e.g. invite clients to our December webinar" aria-describedby="ai-error">
+                        <button type="button" class="button accent small" id="ai-generate"><span class="label">Write</span></button>
+                    </div>
+                    <p class="field-error" id="ai-error" aria-live="polite" hidden></p>
+                    <div class="field" id="subject-field">
+                        <label for="campaign-subject">Fallback subject</label>
+                        <input id="campaign-subject" name="subject" maxlength="255" placeholder="Hi {{client_name}}, …" aria-describedby="subject-error">
+                        <p class="field-error" id="subject-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field message-field">
+                        <div class="label-row">
+                            <span id="script-title">Fallback message</span>
+                            <output class="script-count" id="script-count" aria-live="off"></output>
+                        </div>
+                        <div class="editor">
+                            <div class="editor-toolbar" id="script-toolbar" role="group" aria-label="Message formatting">
+                                <button type="button" class="format" data-format="bold" aria-label="Bold" title="Bold" aria-pressed="false"><i data-icon="bold"></i></button>
+                                <button type="button" class="format" data-format="italic" aria-label="Italic" title="Italic" aria-pressed="false"><i data-icon="italic"></i></button>
+                                <button type="button" class="format" data-format="underline" aria-label="Underline" title="Underline" aria-pressed="false"><i data-icon="underline"></i></button>
+                                <button type="button" class="format" data-format="insertUnorderedList" aria-label="Bulleted list" title="Bulleted list" aria-pressed="false"><i data-icon="list"></i></button>
+                                <button type="button" class="format" data-format="insertOrderedList" aria-label="Numbered list" title="Numbered list" aria-pressed="false"><i data-icon="list-ordered"></i></button>
+                                <span class="editor-hint">Type <kbd>{{</kbd> for fields</span>
+                            </div>
+                            <div class="script-editor" id="script-editor" contenteditable="true" role="combobox" aria-multiline="true" aria-autocomplete="list" aria-labelledby="script-title" aria-describedby="script-help script-error" data-placeholder="Hi {{client_name}}, …"></div>
+                            <ul class="mention-menu" id="mention-menu" role="listbox" aria-label="Personalization fields" hidden></ul>
+                        </div>
+                        <p class="field-help" id="script-help">Used when a row’s Subject or Message cell is empty.</p>
+                        <p class="field-error" id="script-error" aria-live="polite" hidden></p>
+                    </div>
+                </section>
+                <p class="inline-error compose-error" id="compose-error" role="alert" hidden></p>
+            </div>
+            <footer class="dialog-footer">
+                <button type="button" class="button secondary" data-close>Cancel</button>
+                <button type="submit" class="button primary" id="compose-submit">Import and preview</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog id="library" class="dialog narrow" aria-labelledby="library-title">
+        <header class="dialog-header">
+            <h2 id="library-title">Attachments</h2>
+            <button type="button" class="icon-button" data-close aria-label="Close attachments"><i data-icon="x"></i></button>
+        </header>
+        <div class="dialog-body">
+            <label class="button primary upload-button">
+                <i data-icon="upload"></i><span>Upload a file</span>
+                <input id="library-upload" type="file" aria-label="Upload a file to the library" aria-describedby="library-error">
+            </label>
+            <p class="field-help library-help">Documents, spreadsheets, images and other files up to 10 MB.</p>
+            <ul id="library-files" class="file-list"></ul>
+            <p class="inline-error" id="library-error" role="alert" hidden></p>
+        </div>
+    </dialog>
+
+    <dialog id="confirm" class="dialog narrow" aria-labelledby="confirm-title">
+        <form id="confirm-form" novalidate>
+            <header class="dialog-header">
+                <div><h2 id="confirm-title"></h2><p id="confirm-description"></p></div>
+                <button type="button" class="icon-button" data-close aria-label="Close confirmation"><i data-icon="x"></i></button>
+            </header>
+            <div class="dialog-body" id="confirm-body">
+                <div class="field" id="approve-field">
+                    <label for="approve-name">Campaign name</label>
+                    <input name="approve" id="approve-name" autocomplete="off" aria-describedby="approve-error">
+                    <p class="field-error" id="approve-error" aria-live="polite" hidden></p>
+                </div>
+                <div id="review-fields" hidden>
+                    <div class="field">
+                        <label for="review-outcome">Outcome</label>
+                        <select name="outcome" id="review-outcome" aria-describedby="outcome-error">
+                            <option value="">Choose the outcome</option>
+                            <option value="SENT">Sent</option>
+                            <option value="FAILED">Failed</option>
+                        </select>
+                        <p class="field-error" id="outcome-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field">
+                        <label for="review-note">What happened?</label>
+                        <textarea name="note" id="review-note" rows="3" maxlength="1000" placeholder="e.g. Recipient confirmed receipt" aria-describedby="note-error"></textarea>
+                        <p class="field-error" id="note-error" aria-live="polite" hidden></p>
+                    </div>
+                </div>
+                <p class="inline-error" id="confirm-error" role="alert" hidden></p>
+            </div>
+            <footer class="dialog-footer">
+                <button type="button" class="button secondary" data-close>Back</button>
+                <button type="submit" class="button primary" id="confirm-submit"></button>
+            </footer>
+        </form>
+    </dialog>
+    <dialog id="viewer" class="dialog viewer" aria-labelledby="viewer-title">
+        <header class="dialog-header">
+            <div class="viewer-heading"><h2 id="viewer-title"></h2><p id="viewer-meta"></p></div>
+            <div class="viewer-actions">
+                <a class="button secondary small" id="viewer-download" href="#" download><i data-icon="download"></i><span>Download</span></a>
+                <button type="button" class="icon-button" data-close aria-label="Close viewer"><i data-icon="x"></i></button>
+            </div>
+        </header>
+        <div class="viewer-body" id="viewer-body"></div>
+    </dialog>
+
+    <dialog id="settings" class="dialog settings" aria-labelledby="settings-title">
+        <header class="dialog-header">
+            <h2 id="settings-title">Settings</h2>
+            <button type="button" class="icon-button" data-close aria-label="Close settings"><i data-icon="x"></i></button>
+        </header>
+        <div class="settings-tabs" id="settings-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" role="tab" id="tab-gmail" data-tab="gmail" aria-controls="panel-gmail" aria-selected="true"><i data-brand="gmail" data-size="14"></i>Gmail</button>
+            <button type="button" role="tab" id="tab-whatsapp" data-tab="whatsapp" aria-controls="panel-whatsapp" aria-selected="false" tabindex="-1"><i data-brand="whatsapp" data-size="14"></i>WhatsApp</button>
+            <button type="button" role="tab" id="tab-sending" data-tab="sending" aria-controls="panel-sending" aria-selected="false" tabindex="-1"><span class="channel-icon"><i data-icon="timer" data-size="14"></i></span>Sending</button>
+        </div>
+        <p class="inline-error settings-error" id="settings-error" role="alert" hidden></p>
+
+        <form class="settings-panel" id="panel-gmail" role="tabpanel" aria-labelledby="tab-gmail" novalidate>
+            <div class="dialog-body">
+                <p class="settings-intro">Campaign emails are sent from this Gmail account using a Google App Password.</p>
+                <div class="field">
+                    <label for="gmail-user">Gmail address</label>
+                    <input id="gmail-user" type="email" autocomplete="off" placeholder="you@gmail.com" aria-describedby="gmailUser-error">
+                    <p class="field-error" id="gmailUser-error" aria-live="polite" hidden></p>
+                </div>
+                <div class="field">
+                    <div class="label-row">
+                        <label for="gmail-password">App Password</label>
+                        <a class="text-link" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer"><span>Create one</span><i data-icon="external-link" data-size="13"></i></a>
+                    </div>
+                    <input id="gmail-password" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="gmail-password-help gmailPassword-error">
+                    <p class="field-help" id="gmail-password-help">Requires 2-Step Verification on the Google account.</p>
+                    <p class="field-error" id="gmailPassword-error" aria-live="polite" hidden></p>
+                </div>
+                <p class="settings-success" id="gmail-status" role="status" hidden><i data-icon="shield-check" data-size="15"></i>Gmail accepted these details.</p>
+                <p class="inline-error" id="gmail-error" role="alert" hidden></p>
+            </div>
+            <footer class="dialog-footer">
+                <button type="button" class="button secondary" id="gmail-verify"><i data-icon="plug"></i><span>Check connection</span></button>
+                <button type="submit" class="button primary" id="gmail-save">Save</button>
+            </footer>
+        </form>
+
+        <section class="settings-panel" id="panel-whatsapp" role="tabpanel" aria-labelledby="tab-whatsapp" hidden>
+            <div class="dialog-body">
+                <div class="whatsapp-status" id="whatsapp-status" data-status="unlinked">
+                    <i data-brand="whatsapp" data-size="22"></i>
+                    <div><strong id="whatsapp-state">Not linked</strong><p id="whatsapp-copy"></p></div>
+                </div>
+                <div class="whatsapp-qr" id="whatsapp-qr" hidden>
+                    <img id="whatsapp-qr-image" alt="WhatsApp pairing code" width="208" height="208" hidden>
+                    <p class="viewer-loading" id="whatsapp-qr-wait">Getting a code…</p>
+                </div>
+                <p class="inline-error" id="whatsapp-error" role="alert" hidden></p>
+            </div>
+            <footer class="dialog-footer">
+                <button type="button" class="button quiet-danger" id="whatsapp-unlink" hidden><i data-icon="unlink"></i><span>Unlink</span></button>
+                <button type="button" class="button secondary" id="whatsapp-cancel" hidden>Cancel</button>
+                <button type="button" class="button primary" id="whatsapp-link"><i data-icon="qr-code"></i><span>Link with QR code</span></button>
+            </footer>
+        </section>
+
+        <form class="settings-panel" id="panel-sending" role="tabpanel" aria-labelledby="tab-sending" novalidate hidden>
+            <div class="dialog-body">
+                <div class="field">
+                    <label for="sending-country">Country for local phone numbers</label>
+                    <select id="sending-country" aria-describedby="sending-country-help country-error"></select>
+                    <p class="field-help" id="sending-country-help">Numbers without a +country code are read as this country.</p>
+                    <p class="field-error" id="country-error" aria-live="polite" hidden></p>
+                </div>
+                <div class="field">
+                    <label for="sending-delay">Pause between messages</label>
+                    <div class="input-suffix">
+                        <input id="sending-delay" type="number" min="0" max="3600" step="1" inputmode="numeric" aria-describedby="sending-delay-help delay-error">
+                        <span>seconds</span>
+                    </div>
+                    <p class="field-help" id="sending-delay-help">Longer pauses look more natural to Gmail and WhatsApp.</p>
+                    <p class="field-error" id="delay-error" aria-live="polite" hidden></p>
+                </div>
+                <p class="inline-error" id="sending-error" role="alert" hidden></p>
+            </div>
+            <footer class="dialog-footer">
+                <button type="submit" class="button primary" id="sending-save">Save</button>
+            </footer>
+        </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
