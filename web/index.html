@@ -29,15 +29,15 @@
                 <span class="brand-name">Message Blaster</span>
             </a>
             <nav class="topnav" aria-label="Workspace">
-                <a class="nav-item" href="/" id="nav-campaigns" aria-current="page"><i data-icon="layout-list"></i><span>Campaigns</span></a>
-                <button class="nav-item" type="button" id="open-library"><i data-icon="paperclip"></i><span>Attachments</span></button>
-                <button class="nav-item" type="button" id="open-settings"><i data-icon="settings"></i><span>Settings</span></button>
-                <a class="nav-item" href="/audit" id="open-audit" aria-label="Audit log" hidden><i data-icon="clipboard-list"></i><span>Audit log</span></a>
+                <a class="nav-item" href="/" id="nav-campaigns" aria-current="page" title="Campaigns"><i data-icon="layout-list"></i><span>Campaigns</span></a>
+                <button class="nav-item" type="button" id="open-library" title="Attachments"><i data-icon="paperclip"></i><span>Attachments</span></button>
+                <button class="nav-item" type="button" id="open-settings" title="Settings"><i data-icon="settings"></i><span>Settings</span></button>
+                <a class="nav-item" href="/audit" id="open-audit" title="Audit log" hidden><i data-icon="clipboard-list"></i><span>Audit log</span></a>
             </nav>
             <div class="topbar-status">
                 <span class="connection" id="connection" role="status"><i></i><span>Connecting…</span></span>
                 <span class="mode-label" id="mode-indicator" title="Sending is turned off. You can import and preview campaigns." hidden>
-                    <i data-icon="eye" data-size="14"></i>Preview mode
+                    <i data-icon="eye" data-size="14"></i><span class="mode-text">Preview mode</span>
                 </span>
                 <button type="button" class="button primary" id="create-campaign"><i data-icon="plus"></i><span>New campaign</span></button>
                 <details class="menu user-menu" id="user-menu">

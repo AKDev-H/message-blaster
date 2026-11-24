@@ -8,6 +8,7 @@ const monthTitle = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'nu
 const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const shortDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const fullDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const SINGLE_MONTH = window.matchMedia('(max-width: 720px)');
 const KEY_STEPS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
 export class DateRangePicker {
@@ -54,7 +55,9 @@ export class DateRangePicker {
     open() {
         this.#draft = { ...this.#value };
         this.#hover = '';
-        this.#month = startOfMonth(addMonths(this.#value.to || this.#max || today(), -1));
+        // Two months show side by side on wider screens, so lead with the month before the range's end there.
+        const end = this.#value.to || this.#max || today();
+        this.#month = startOfMonth(SINGLE_MONTH.matches ? end : addMonths(end, -1));
         if (this.#min && this.#month < startOfMonth(this.#min)) this.#month = startOfMonth(this.#min);
         this.#focus = this.#value.from || this.#value.to || this.#max || today();
         this.#popover.hidden = false;
@@ -152,10 +155,9 @@ export class DateRangePicker {
         const next = clamp(addDays(this.#focus, step), this.#min, this.#max);
         this.#focus = next;
         this.#preview(next);
-        const first = this.#month;
-        const last = addMonths(first, 1);
-        if (next < first) this.#month = startOfMonth(next);
-        else if (next >= addMonths(last, 1)) this.#month = addMonths(startOfMonth(next), -1);
+        const shown = SINGLE_MONTH.matches ? 1 : 2;
+        if (next < this.#month) this.#month = startOfMonth(next);
+        else if (next >= addMonths(this.#month, shown)) this.#month = addMonths(startOfMonth(next), 1 - shown);
         this.#render();
         this.#focusDay();
     }

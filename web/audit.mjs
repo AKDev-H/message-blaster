@@ -201,7 +201,11 @@ function actorName(event) {
     avatar.setAttribute('aria-hidden', 'true');
     fillAvatar(avatar, user);
     const name = event.actorEmail ? displayNameOf(user) : `Removed user #${event.actorId}`;
-    wrapper.append(avatar, textWithTitle('span', 'audit-actor-name', name));
+    const text = element('span', 'audit-actor-text');
+    text.append(textWithTitle('span', 'audit-actor-name', name));
+    // Shown under the name where the separate email column is hidden (tablet and phone).
+    if (event.actorEmail) text.append(textWithTitle('span', 'audit-actor-sub', event.actorEmail));
+    wrapper.append(avatar, text);
     return wrapper;
 }
 
