@@ -63,6 +63,32 @@ function seedCampaigns({ count }) {
     return null;
 }
 
+const DAY_MS = 86_400_000;
+const AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#2f6f73"/></svg>');
+
+function localDay(time) {
+    const date = new Date(time);
+    return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map(part => String(part).padStart(2, '0')).join('-');
+}
+
+// Gives the signed-in test user a Google profile and adds audit events of known ages; returns each event's local date.
+function seedAudit({ email, name }) {
+    const db = new DatabaseSync(databasePath);
+    try {
+        db.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
+        db.prepare('UPDATE users SET display_name = ?, picture_url = ? WHERE email = ?').run(name, AVATAR, email);
+        const actor = db.prepare('SELECT id FROM users WHERE email = ?').get(email).id;
+        const now = Date.now();
+        const events = { today: [now - 60_000, actor, 'web'], recent: [now - 3 * DAY_MS, actor, 'web'], old: [now - 20 * DAY_MS, null, 'cli'] };
+        const insert = db.prepare("INSERT INTO audit_events (occurred_at, actor_id, source, action, outcome) VALUES (?, ?, ?, ?, 'success')");
+        for (const [key, [time, actorId, source]] of Object.entries(events)) insert.run(time, actorId, source, `seed.${key}`);
+        db.exec('COMMIT');
+        return Object.fromEntries(Object.entries(events).map(([key, [time]]) => [key, localDay(time)]));
+    } finally {
+        db.close();
+    }
+}
+
 const headers = {
     gmail: ['Client Name', 'Email Address', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
     whatsapp: ['Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
@@ -116,7 +142,8 @@ export default defineConfig({
         downloadsFolder: 'storage/cypress/downloads',
         setupNodeEvents(on) {
             on('task', { 'db:reset': resetDatabase, 'workbook:create': createWorkbook, 'docx:create': createDocx, 'workbook:inspect': inspectWorkbook,
-                'campaign:simulate': simulateDelivery, 'campaigns:seed': seedCampaigns });
+                'campaign:simulate': simulateDelivery, 'campaigns:seed': seedCampaigns,
+                'audit:seed': seedAudit });
         },
     },
 });
