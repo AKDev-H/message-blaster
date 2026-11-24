@@ -2,10 +2,6 @@ const DOCUMENT_TAGS = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 's
     'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'blockquote', 'a', 'img']);
 const INLINE_IMAGE = /^data:image\/(png|jpe?g|gif|webp);base64,/iu;
 
-/**
- * Copies converted Word HTML into the page, keeping only harmless tags.
- * Links become plain text, and images are kept only when embedded in the file.
- */
 export function appendSafeDocument(source, target) {
     for (const child of source.childNodes) {
         if (child.nodeType === Node.TEXT_NODE) target.append(child.data);

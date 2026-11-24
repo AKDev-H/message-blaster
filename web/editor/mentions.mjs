@@ -2,10 +2,6 @@ import { element } from '../shared/ui.mjs';
 
 const TRIGGER = /\{\{\s*([a-z_]*)$/iu;
 
-/**
- * The menu that opens when the user types "{{" in the editor, listing the placeholders
- * that match what follows. `variables()` returns the available { token, label } pairs.
- */
 export class MentionMenu {
     #mention = null;
 
@@ -19,7 +15,6 @@ export class MentionMenu {
         this.root.setAttribute('aria-expanded', 'false');
     }
 
-    /** Opens, filters or closes the menu to match the text just before the caret. */
     update() {
         const found = document.activeElement === this.root ? this.#findTrigger() : null;
         const items = found ? this.#matching(found.query) : [];
@@ -38,7 +33,6 @@ export class MentionMenu {
         this.root.setAttribute('aria-expanded', 'false');
     }
 
-    /** Arrow keys move, Enter or Tab picks, Escape closes. Other keys reach the editor. */
     handleKey(event) {
         if (!this.#mention) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') this.#move(event.key === 'ArrowDown' ? 1 : -1);
@@ -90,7 +84,6 @@ export class MentionMenu {
         return option;
     }
 
-    /** Places the menu just under the caret, kept inside the editor frame. */
     #position() {
         const caret = this.#mention.trigger.getBoundingClientRect();
         const box = this.root.closest('.editor').getBoundingClientRect();
@@ -105,7 +98,6 @@ export class MentionMenu {
         this.#render();
     }
 
-    /** Replaces the typed "{{query" with the chosen placeholder. */
     #choose(index) {
         if (!this.#mention) return;
         const { token } = this.#mention.items[index];

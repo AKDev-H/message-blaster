@@ -13,7 +13,6 @@ const LINK_BUTTONS = [
     ['whatsapp-unlink', '/api/settings/whatsapp/unlink', 'POST'],
 ];
 
-/** The WhatsApp tab: link status, the pairing QR code, and the link / cancel / unlink buttons. */
 export class WhatsAppPanel {
     constructor(onChange) {
         for (const [id, path, method] of LINK_BUTTONS) {
@@ -42,7 +41,6 @@ export class WhatsAppPanel {
     }
 }
 
-/** While pairing, shows a waiting message until the QR code arrives. */
 function showQrCode(status, qr) {
     get('whatsapp-qr').hidden = status !== 'pairing';
     get('whatsapp-qr-wait').hidden = Boolean(qr);

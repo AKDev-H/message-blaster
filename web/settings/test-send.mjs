@@ -20,10 +20,6 @@ const COPY = {
     },
 };
 
-/**
- * The "Test send" box of one channel. Campaigns can only start after a test was
- * sent and the user confirmed it arrived. `onChange(settings)` redraws the dialog.
- */
 export class TestSend {
     #edited = false;
     #busy = false;
@@ -42,7 +38,6 @@ export class TestSend {
         this.#clearError();
     }
 
-    /** Redraws from the server's test state. Returns true while a test is still sending, so the dialog keeps polling. */
     render({ dryRun, test, fallbackRecipient = '' }) {
         const latest = test.latest?.current ? test.latest : null;
         const sending = latest?.phase === 'sending';
@@ -113,7 +108,6 @@ export class TestSend {
         this.#act(this.confirm, () => sendJson(`/api/settings/${this.channel}/test/confirm`, 'POST'), 'Test confirmed. Campaigns can start.');
     }
 
-    /** Runs one request at a time. A problem with the recipient is shown on the input. */
     async #act(control, action, done) {
         if (this.#busy) return;
         this.#busy = true;
@@ -165,7 +159,6 @@ export class TestSend {
         return test.confirmed ? 'This account is confirmed. Campaigns can start.' : this.copy.required;
     }
 
-    /** The recipient field is pre-filled with the last test's recipient until the user types. */
     #renderInput(test, dryRun, latest, sending, fallbackRecipient) {
         if (!this.#edited) this.input.value = latest?.recipient || this.input.value || fallbackRecipient;
         this.input.disabled = !test.account || dryRun || sending;

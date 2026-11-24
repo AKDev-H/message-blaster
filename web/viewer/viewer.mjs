@@ -2,7 +2,6 @@ import { element, get, number } from '../shared/ui.mjs';
 import { fileUrl, kindOf } from './files.mjs';
 import { RENDERERS } from './renderers.mjs';
 
-/** The dialog that previews an attachment. Opening another file cancels the previous preview. */
 export class FileViewer {
     #dialog = get('viewer');
     #body = get('viewer-body');

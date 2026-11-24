@@ -44,13 +44,11 @@ function openDetails(id) {
     details.open(id);
 }
 
-/** After the panel closes, focus goes back to the campaign's row in the table. */
 function focusClosedCampaign(id) {
     queue.render(state.campaigns, '');
     if (id) get('campaign-rows').querySelector(`[data-campaign="${CSS.escape(id)}"]`)?.focus();
 }
 
-/** Applies a campaign list from the server. The open panel reloads only if its campaign changed. */
 function applySnapshot(snapshot) {
     const previous = new Map((state.campaigns ?? []).map(campaign => [campaign.id, JSON.stringify(campaign)]));
     const revisionChanged = state.revision !== (snapshot.revision ?? null);
@@ -61,7 +59,6 @@ function applySnapshot(snapshot) {
     details.update(state, campaign => revisionChanged || previous.get(campaign.id) !== JSON.stringify(campaign));
 }
 
-/** Fetches the list directly. Ignored if a live update arrived meanwhile, since that one is newer. */
 async function loadOverview() {
     const streamUpdates = state.streamUpdates;
     try {
@@ -74,7 +71,6 @@ async function loadOverview() {
     }
 }
 
-/** Live updates come over Server-Sent Events. While disconnected, the list is polled instead. */
 function followLiveUpdates() {
     const events = new EventSource('/api/events');
     events.addEventListener('open', () => setConnection('live', 'Live'));
@@ -111,7 +107,6 @@ function wireToolbar() {
     wireTemplateMenu(get('template-menu'));
 }
 
-/** The template download menu closes on a choice, a click outside, or Escape. */
 function wireTemplateMenu(menu) {
     menu.addEventListener('click', event => {
         if (event.target.closest('a')) menu.open = false;

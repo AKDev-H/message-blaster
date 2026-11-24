@@ -12,7 +12,6 @@ export const COLUMNS = {
 export const blankRow = () => ({ name: '', email: '', phone: '' });
 export const isFilled = row => Object.values(row).some(value => value.trim());
 
-/** The columns shown for the selected channels: always a name, plus email and/or phone. */
 export function columnsFor(channels) {
     return ['name', ...(channels.includes('gmail') ? ['email'] : []), ...(channels.includes('whatsapp') ? ['phone'] : [])];
 }
@@ -24,10 +23,6 @@ export function rowElement(row, index, keys, entering) {
     return node;
 }
 
-/**
- * Pastes tab-separated rows (as copied from a spreadsheet) starting at the given cell.
- * Returns how many lines were pasted and whether some did not fit.
- */
 export function pasteRows(rows, text, { index, key }, visibleKeys) {
     const keys = visibleKeys.slice(visibleKeys.indexOf(key));
     const lines = text.replaceAll('\r', '').split('\n').filter(line => line.trim());

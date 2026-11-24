@@ -12,7 +12,6 @@ export const COUNT_LABELS = {
     failed: 'Failed', unknown: 'Needs review', skipped: 'Skipped',
 };
 
-/** The live run status (such as "Connecting") wins over the saved campaign state. */
 export const statusOf = campaign => campaign.runStatus || campaign.state;
 export const isActive = campaign => campaign.runActive || campaign.state === 'Running' || campaign.processing > 0;
 const settledCount = campaign => campaign.completed + campaign.failed + campaign.unknown + campaign.skipped;

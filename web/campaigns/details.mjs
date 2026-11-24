@@ -5,10 +5,6 @@ import { actionContext, actionSignature, campaignActions } from './actions.mjs';
 import { emptyRecipientRow, recipientRow } from './recipient-rows.mjs';
 import { badge, COUNT_KEYS, COUNT_LABELS, statusOf } from './status.mjs';
 
-/**
- * The panel for one campaign: header, action buttons, counts and a page of recipients.
- * `on` has edit(detail), action(name, campaign, recordId), viewAttachment(name) and close(id).
- */
 export class CampaignDetails {
     #panel = get('details');
     #actions = get('detail-actions');
@@ -47,7 +43,6 @@ export class CampaignDetails {
         this.#panel.hidden = true;
     }
 
-    /** Called with every live snapshot. Reloads only when this campaign changed. */
     update(overview, changed) {
         this.#overview = overview;
         if (!this.#selected) return;
@@ -57,7 +52,6 @@ export class CampaignDetails {
         else if (this.#detail) this.#renderHeader();
     }
 
-    /** Loads the current page. A newer request cancels an older one still in flight. */
     async reload() {
         if (!this.#selected) return;
         this.#pendingRequest?.abort();
@@ -101,7 +95,6 @@ export class CampaignDetails {
         paginate(this.#detail.page, this.#detail.totalPages);
     }
 
-    /** The header uses the live snapshot, which is newer than the loaded page. */
     #renderHeader() {
         const { campaign } = this.#detail;
         const latest = this.#overview.campaigns.find(row => row.id === campaign.id) ?? campaign;
@@ -113,7 +106,6 @@ export class CampaignDetails {
         this.#renderActions(actionContext(this.#detail, latest, this.#overview));
     }
 
-    /** Buttons are rebuilt only when they would change, keeping focus on the one the user was on. */
     #renderActions(context) {
         const signature = actionSignature(context);
         if (this.#actions.dataset.signature === signature) return;

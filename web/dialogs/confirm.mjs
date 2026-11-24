@@ -10,10 +10,8 @@ const ACTIONS = {
     review: { title: 'Review outcome', copy: 'Confirm whether the recipient received the message.', done: 'Outcome recorded' },
 };
 
-/** Sending to real recipients requires typing the campaign name. */
 const needsApproval = action => action === 'start' || action === 'resume';
 
-/** Asks before any campaign action, collecting approval or a review when needed. `onDone(action, id)` runs after success. */
 export class ConfirmDialog {
     #dialog = get('confirm');
     #form = get('confirm-form');
@@ -98,7 +96,6 @@ export class ConfirmDialog {
         this.#form.addEventListener('submit', event => this.#send(event));
     }
 
-    /** The campaign name turns green once typed correctly. */
     #highlightMatch() {
         const token = get('confirm-description').querySelector('.confirm-token');
         token?.classList.toggle('matched', this.controls.approve.value.trim() === this.#pending?.id);

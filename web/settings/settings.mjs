@@ -5,10 +5,6 @@ import { WhatsAppPanel } from './whatsapp.mjs';
 
 const POLL_MS = 2_000;
 
-/**
- * The Settings dialog. Every change returns the full settings from the server,
- * which redraws the dialog. While a test is sending or WhatsApp is pairing, it polls.
- */
 export class SettingsDialog {
     #dialog = get('settings');
     #tabs = [...this.#dialog.querySelectorAll('[role="tab"]')];
@@ -33,7 +29,6 @@ export class SettingsDialog {
         this.#refresh();
     }
 
-    /** With `forms: false` only the status parts are redrawn, so half-typed form values are kept. */
     render(settings, { forms = true } = {}) {
         if (forms) this.#fillForms(settings);
         this.whatsapp.render(settings.whatsapp);
@@ -47,7 +42,6 @@ export class SettingsDialog {
         this.sending.fill(settings);
     }
 
-    /** The WhatsApp test only shows once a number is linked. Returns true while a test is sending. */
     #renderTests(settings) {
         const linked = settings.whatsapp.status === 'linked';
         get('whatsapp-test').hidden = !linked;
@@ -79,7 +73,6 @@ export class SettingsDialog {
         }
     }
 
-    /** Left and right arrows move between tabs, wrapping around. */
     #onTabKey(event) {
         if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
         const index = this.#tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true');

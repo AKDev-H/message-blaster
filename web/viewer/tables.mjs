@@ -3,7 +3,6 @@ import { element } from '../shared/ui.mjs';
 export const MAX_ROWS = 500;
 export const MAX_COLUMNS = 40;
 
-/** A table of strings. The first row is the header. Large files are cut to fit. */
 export function table(rows) {
     const body = element('tbody');
     for (const [index, values] of rows.slice(0, MAX_ROWS).entries()) body.append(tableRow(values, index === 0 ? 'th' : 'td'));
@@ -14,7 +13,6 @@ export function table(rows) {
     return wrap;
 }
 
-/** Splits CSV into rows of cells, following quoting rules ("" inside quotes is one quote). */
 export function parseCsv(text) {
     const parser = { rows: [], row: [], cell: '', quoted: false };
     for (let index = 0; index < text.length && parser.rows.length < MAX_ROWS; index++) index = readCharacter(parser, text, index);
@@ -28,7 +26,6 @@ function tableRow(values, cellTag) {
     return row;
 }
 
-/** Handles one character and returns the index it ended on (an escaped quote or \r\n uses two). */
 function readCharacter(parser, text, index) {
     const character = text[index];
     if (parser.quoted) return readQuoted(parser, text, index);

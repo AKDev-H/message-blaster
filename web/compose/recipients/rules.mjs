@@ -5,10 +5,6 @@ const PHONE_PATTERN = /^\+?[\d\s().-]+$/u;
 
 const isPhone = value => PHONE_PATTERN.test(value) && value.replaceAll(/\D/gu, '').length >= 6;
 
-/**
- * The first problem with the typed recipients, as { message, index, key } so the
- * cell can be focused, or null when the list is fine. When editing, an empty list keeps the old recipients.
- */
 export function firstProblem(rows, keys, consented, editing) {
     if (!rows.some(isFilled)) return editing ? null : { message: 'Add at least one recipient.', index: 0, key: keys[0] };
     for (const [index, row] of rows.entries()) {
@@ -18,7 +14,6 @@ export function firstProblem(rows, keys, consented, editing) {
     return consented ? null : { message: 'Confirm that everyone listed agreed to receive messages.' };
 }
 
-/** With both channels, either an email or a phone is enough. */
 function rowProblem(row, keys) {
     const wantsEmail = keys.includes('email');
     const wantsPhone = keys.includes('phone');

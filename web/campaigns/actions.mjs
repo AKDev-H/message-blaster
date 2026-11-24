@@ -1,10 +1,6 @@
 import { button, campaignPath, link } from '../shared/ui.mjs';
 import { isActive } from './status.mjs';
 
-/**
- * The buttons a campaign shows, in order. Each rule says when it applies and how to build it.
- * `context` describes the campaign; `on` holds the callbacks for edit and confirmed actions.
- */
 const ACTION_RULES = [
     { when: c => c.hasDraft && !c.active, build: (c, on) => button('Edit', () => on.edit(), undefined, 'pencil') },
     { when: canSend, build: sendButton },
@@ -18,7 +14,6 @@ const ACTION_RULES = [
     { when: c => !c.active, build: (c, on) => button('Delete', () => on.action('delete', c.latest), 'button quiet-danger small', 'trash-2') },
 ];
 
-/** `latest` is the campaign as the live stream last reported it; `detail` is the loaded detail page. */
 export function actionContext(detail, latest, overview) {
     const id = detail.campaign.id;
     return {
@@ -35,13 +30,11 @@ export function campaignActions(context, on) {
     return ACTION_RULES.filter(rule => rule.when(context)).map(rule => rule.build(context, on));
 }
 
-/** Changes whenever the set of buttons would change, so they are only rebuilt then. */
 export function actionSignature(c) {
     const { state, runStatus, queued, failed } = c.latest;
     return JSON.stringify([c.id, c.hasDraft, state, runStatus, c.active, queued > 0, failed > 0, c.anotherActive, c.dryRun]);
 }
 
-/** A test campaign is only ever started from Settings, so here it can only be resumed. */
 function canSend(c) {
     const sendable = ['Ready', 'Paused', 'Failed'].includes(c.latest.state) && c.latest.queued > 0;
     return !c.active && sendable && (!c.isTest || c.latest.state !== 'Ready');

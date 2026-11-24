@@ -12,7 +12,6 @@ const loadingScripts = new Map();
 
 export const fileUrl = name => `/api/attachments/${encodeURIComponent(name)}`;
 
-/** Which preview to use for a file name, or "none". */
 export function kindOf(name) {
     return Object.keys(KINDS).find(kind => KINDS[kind].includes(extensionOf(name))) ?? 'none';
 }
@@ -23,7 +22,6 @@ export async function fetchFile(name, as) {
     return as === 'text' ? response.text() : response.arrayBuffer();
 }
 
-/** Loads a vendor script on first use and returns the global it defines. */
 export function loadScript(src, globalName) {
     if (window[globalName]) return Promise.resolve(window[globalName]);
     if (!loadingScripts.has(src)) loadingScripts.set(src, injectScript(src, globalName));

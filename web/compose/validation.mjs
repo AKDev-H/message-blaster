@@ -6,10 +6,6 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/iu;
 const SCRIPT_LIMITS = { gmail: 32767, whatsapp: 4096 };
 const PLACEHOLDER = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}|\{\{|\}\}/gu;
 
-/**
- * Checks the compose form before it is sent. `draft` holds the values read from the form;
- * `recipientError` is the typed-recipient check. Returns a message per field, empty when fine.
- */
 export function draftErrors(draft, recipientError) {
     const { channels, editing } = draft;
     const errors = editing ? {} : { id: nameError(draft.name, channels) };
@@ -40,13 +36,11 @@ function subjectError(subject) {
     return subject.length > 255 ? 'Use 255 characters or fewer.' : templateError(subject, ['gmail']);
 }
 
-/** The shortest limit of the selected channels applies. */
 function scriptError(text, channels) {
     const limit = Math.min(...channels.map(channel => SCRIPT_LIMITS[channel]));
     return text.length > limit ? `Use ${number.format(limit)} characters or fewer.` : templateError(text, channels);
 }
 
-/** Every {{placeholder}} must be closed and available on every selected channel. */
 function templateError(text, channels) {
     const allowed = sharedVariables(channels);
     for (const [, token] of text.matchAll(PLACEHOLDER)) {

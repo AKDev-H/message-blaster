@@ -13,7 +13,6 @@ export function fileSize(bytes) {
     return `${number.format(Math.round(bytes / 1024 ** 2 * 10) / 10)} MB`;
 }
 
-/** A short badge for a file, such as "PDF" or "DOCX". */
 export function fileKind(name) {
     return name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toUpperCase().slice(0, 4) : 'FILE';
 }

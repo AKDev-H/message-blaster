@@ -5,7 +5,6 @@ import { badge, formatDate, progressBar, progressText, statusOf } from './status
 
 const TOTAL_METRICS = ['queued', 'processing', 'completed', 'failed'];
 
-/** The campaign table with its status tabs, channel toggles and totals. */
 export class CampaignQueue {
     #rows = get('campaign-rows');
     #statusTabs = [...get('status-tabs').querySelectorAll('[data-status]')];
@@ -42,7 +41,6 @@ export class CampaignQueue {
         this.#setFilter('channel', this.#filters.channel === channel ? '' : channel);
     }
 
-    /** The totals follow the channel filter but not the status tab. Returns the campaigns in the channel. */
     #renderTotals(campaigns) {
         const inChannel = campaigns.filter(campaign => !this.#filters.channel || campaign.channel === this.#filters.channel);
         const total = key => inChannel.reduce((sum, campaign) => sum + (campaign[key] ?? 0), 0);
@@ -57,7 +55,6 @@ export class CampaignQueue {
         for (const toggle of this.#channelToggles) toggle.setAttribute('aria-pressed', String(toggle.dataset.channel === this.#filters.channel));
     }
 
-    /** "Failed" also shows campaigns with messages that need review. */
     #matchesStatus(campaign) {
         const { status } = this.#filters;
         return !status || campaign[status] > 0 || (status === 'failed' && campaign.unknown > 0);
@@ -73,7 +70,6 @@ export class CampaignQueue {
         renderEmptyState(filtered);
     }
 
-    /** Rows are only rebuilt when something visible changed, and keyboard focus is kept. */
     #renderRows(visible, selected) {
         const signature = JSON.stringify([selected, visible]);
         if (signature === this.#signature) return;
@@ -122,7 +118,6 @@ function progressCell(campaign) {
     return node;
 }
 
-/** Updates a total and briefly highlights it when the number changed. */
 function setMetric(key, value) {
     const target = get(`metric-${key}`);
     const text = number.format(value);

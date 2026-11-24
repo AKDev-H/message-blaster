@@ -2,10 +2,6 @@ import { renderRichText } from '../editor/rich-text.mjs';
 import { button, element, number } from '../shared/ui.mjs';
 import { badge, RECIPIENT_STATUS_LABELS } from './status.mjs';
 
-/**
- * One table row per recipient. `opened` holds the message previews the user had expanded,
- * so a refresh keeps them open. `on` has `review(recordId)` and `viewAttachment(name)`.
- */
 export function recipientRow(record, opened, on) {
     const row = element('tr');
     row.append(identityCell(record), messageCell(record, opened, on), statusCell(record, on),
@@ -39,7 +35,6 @@ function messageCell(record, opened, on) {
     return cell;
 }
 
-/** A one-line summary that expands to the full (formatted) message. */
 function messageBody(record, open) {
     const body = element('details', 'message-body');
     body.dataset.record = String(record.id);

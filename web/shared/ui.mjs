@@ -39,14 +39,12 @@ export function toast(message) {
     toastTimer = window.setTimeout(() => { target.hidden = true; }, 4000);
 }
 
-/** Restarts a CSS animation by removing the class, forcing a reflow, and adding it back. */
 export function replayAnimation(node, className) {
     node.classList.remove(className);
     void node.offsetWidth;
     node.classList.add(className);
 }
 
-/** Calls the API. Failures become an Error with the server's message and, when given, the form field it is about. */
 export async function request(url, options) {
     const response = await fetchOrExplain(url, options);
     if (!response.ok) throw await responseError(response);
@@ -57,7 +55,6 @@ export function sendJson(url, method, body) {
     return request(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
 }
 
-/** Disables the button and shows it as busy until the action finishes. Clicks while busy are ignored. */
 export async function whileBusy(control, action) {
     if (control.disabled) return;
     control.disabled = true;
@@ -70,7 +67,6 @@ export async function whileBusy(control, action) {
     }
 }
 
-/** Shows error messages next to form fields and marks the fields invalid for screen readers. */
 export function formFeedback(fields, generalErrorId) {
     const names = Object.keys(fields);
     const show = (field, message) => showFieldError(fields[field], `${field}-error`, message);
@@ -119,7 +115,6 @@ function showFieldError(control, errorId, message) {
     else control.removeAttribute('aria-invalid');
 }
 
-/** A server error about a known field is shown next to it; anything else goes to the form's general error. */
 function reportError(fields, generalErrorId, show, error) {
     const field = error.field === 'scriptHtml' ? 'script' : error.field;
     if (!Object.hasOwn(fields, field)) return setError(generalErrorId, error);

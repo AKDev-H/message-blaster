@@ -2,7 +2,6 @@ import { formFeedback, get, sendJson, setError, toast, whileBusy } from '../shar
 
 const regionNames = new Intl.DisplayNames(undefined, { type: 'region' });
 
-/** The Gmail tab: address, App Password, and a button to test the sign-in. `onSaved(settings)` redraws the dialog. */
 export class GmailForm {
     #fields = { gmailUser: get('gmail-user'), gmailPassword: get('gmail-password') };
     #feedback = formFeedback(this.#fields, 'gmail-error');
@@ -14,7 +13,6 @@ export class GmailForm {
         get('gmail-verify').addEventListener('click', event => whileBusy(event.currentTarget, () => this.#verify()));
     }
 
-    /** The saved password is never sent back; the field stays empty and says it is saved. */
     fill({ gmail }) {
         this.#passwordSet = gmail.passwordSet;
         this.#fields.gmailUser.value = gmail.user;
@@ -58,7 +56,6 @@ export class GmailForm {
         }
     }
 
-    /** The password may be left empty when one is already saved. */
     #errors() {
         const user = this.#fields.gmailUser.value.trim();
         const password = this.#fields.gmailPassword.value.replaceAll(/\s/gu, '');
@@ -70,7 +67,6 @@ export class GmailForm {
     }
 }
 
-/** The Sending tab: default country for phone numbers, and the delay between messages. */
 export class SendingForm {
     #fields = { country: get('sending-country'), delay: get('sending-delay') };
     #feedback = formFeedback(this.#fields, 'sending-error');
@@ -89,7 +85,6 @@ export class SendingForm {
         this.#feedback.clear();
     }
 
-    /** Countries are listed by their name in the user's language. The list is only built once. */
     #fillCountries(countries, selected) {
         const select = this.#fields.country;
         if (select.options.length !== countries.length) select.replaceChildren(...countryOptions(countries));

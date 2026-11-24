@@ -6,10 +6,6 @@ import { RecipientList } from './recipients/list.mjs';
 import { draftErrors, fileError } from './validation.mjs';
 import { campaignNames, variableOptions } from './variables.mjs';
 
-/**
- * The "New campaign" / "Edit campaign" dialog. `onSaved(id)` runs after a successful save;
- * `viewer` previews attachments.
- */
 export class Composer {
     #dialog = get('compose');
     #form = get('compose-form');
@@ -29,7 +25,6 @@ export class Composer {
         this.#listen();
     }
 
-    /** Opens empty for a new campaign, or filled in from `detail` to edit a draft. */
     open(detail) {
         this.#editingId = detail?.campaign?.id ?? '';
         this.#form.reset();
@@ -69,7 +64,6 @@ export class Composer {
         return this.#editingId !== '';
     }
 
-    // Filling the form
 
     #showMode(campaign) {
         const editing = Boolean(campaign);
@@ -81,7 +75,6 @@ export class Composer {
         this.#chooseChannel(campaign?.channel);
     }
 
-    /** A new campaign starts on Gmail; an edited one keeps its channel, which cannot change. */
     #chooseChannel(channel) {
         for (const input of this.#channelInputs) {
             input.checked = channel ? input.value === channel : input.value === 'gmail';
@@ -98,7 +91,6 @@ export class Composer {
         return this.#editing() ? 'Replace workbook (optional)' : 'Choose an Excel workbook';
     }
 
-    // Keeping the form in step with the chosen options
 
     #syncChannels() {
         const channels = this.#channels();
@@ -120,7 +112,6 @@ export class Composer {
         for (const name of ['workbook', 'recipients']) this.feedback.show(name, '');
     }
 
-    /** With both channels, shows the two campaign names that will be created. */
     #syncNames() {
         const channels = this.#channels();
         const hint = get('channel-hint');
@@ -128,7 +119,6 @@ export class Composer {
         hint.textContent = `Creates ${campaignNames(this.controls.id.value.trim() || 'name', channels).join(' and ')}.`;
     }
 
-    // Saving
 
     async #save(event) {
         event.preventDefault();
@@ -149,7 +139,6 @@ export class Composer {
         return draftErrors(draft, () => this.recipients.error(this.#editing()));
     }
 
-    /** Only the recipient source in use is sent. When editing, the name and channel cannot change. */
     #formData(text, html) {
         const data = new FormData(this.#form);
         data.set('script', text);
@@ -196,7 +185,6 @@ export class Composer {
         await this.onSaved(result.id);
     }
 
-    // Events
 
     #listen() {
         for (const [name, control] of Object.entries(this.controls)) {
@@ -209,7 +197,6 @@ export class Composer {
         this.#form.addEventListener('submit', event => this.#save(event));
     }
 
-    /** Fields already marked invalid are re-checked as the user fixes them. */
     #revalidate(name) {
         if (this.controls[name].hasAttribute('aria-invalid')) this.feedback.show(name, this.#errors(this.editor.value().text)[name]);
     }

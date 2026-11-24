@@ -2,11 +2,6 @@ import { fileKind, fileSize } from '../shared/labels.mjs';
 import { button, element, get, request, setError, toast } from '../shared/ui.mjs';
 import { fileError } from './validation.mjs';
 
-/**
- * The attachment drop-down in the compose form and the file library dialog.
- * Both show the same list of uploaded files. `showFieldError(message)` reports
- * problems on the compose form's attachment field.
- */
 export class AttachmentPicker {
     #files = [];
     #revision = 0;
@@ -18,7 +13,6 @@ export class AttachmentPicker {
         this.#listen();
     }
 
-    /** Fills the drop-down and the library list. A selected file that no longer exists is kept as an option. */
     render(selection = this.select.value) {
         const options = [new Option('No attachment', ''), ...this.#files.map(file => new Option(`${file.name} · ${fileSize(file.size)}`, file.name))];
         if (selection && !this.#files.some(file => file.name === selection)) options.push(new Option(selection, selection));
@@ -28,7 +22,6 @@ export class AttachmentPicker {
         get('library-files').replaceChildren(...this.#libraryRows());
     }
 
-    /** Only the newest load is shown, so a slow answer never overwrites a newer list. */
     async load(errorId) {
         const revision = ++this.#revision;
         try {
@@ -78,7 +71,6 @@ export class AttachmentPicker {
         return row;
     }
 
-    /** Uploads from the compose form select the new file; uploads from the library do not. */
     async #upload(input, errorId, selectUploaded) {
         const upload = input.files[0];
         if (!upload) return;
@@ -104,7 +96,6 @@ export class AttachmentPicker {
         }
     }
 
-    /** Shows the upload straight away, then reloads the list from the server. */
     async #store(upload, errorId, selectUploaded) {
         const data = new FormData();
         data.set('file', upload);

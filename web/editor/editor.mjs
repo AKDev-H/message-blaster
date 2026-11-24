@@ -4,10 +4,6 @@ import { renderRichText, textWithBreaks } from './rich-text.mjs';
 
 const LIST_FORMATS = new Set(['insertUnorderedList', 'insertOrderedList']);
 
-/**
- * The message editor: a contenteditable box with a formatting toolbar,
- * a word count, and the "{{" placeholder menu. Pasted content is always plain text.
- */
 export class ScriptEditor {
     #toolbar = get('script-toolbar');
     #controls = [...this.#toolbar.querySelectorAll('[data-format]')];
@@ -21,7 +17,6 @@ export class ScriptEditor {
         this.#listenToEditor();
     }
 
-    /** WhatsApp has no bold or italics here, only lists. */
     setChannels(channels) {
         const whatsappOnly = channels.length === 1 && channels[0] === 'whatsapp';
         for (const control of this.#controls) {
@@ -38,7 +33,6 @@ export class ScriptEditor {
         this.#updateCount();
     }
 
-    /** The message as plain text and as cleaned HTML. Both are empty when there is no text. */
     value() {
         const text = this.root.innerText.trim();
         if (!text) return { text: '', html: '' };
@@ -53,7 +47,6 @@ export class ScriptEditor {
         return this.root.contains(range.commonAncestorContainer) ? range : null;
     }
 
-    /** Types the text at the caret, falling back to inserting nodes where execCommand is unavailable. */
     replaceSelection(value) {
         if (document.execCommand('insertText', false, value)) return;
         const selection = window.getSelection();
@@ -114,7 +107,6 @@ export class ScriptEditor {
         this.notifyChange();
     }
 
-    /** Remembers the caret so toolbar clicks apply where the user was, and shows which formats are on. */
     #rememberSelection() {
         const range = this.rangeInEditor();
         if (!range) return;

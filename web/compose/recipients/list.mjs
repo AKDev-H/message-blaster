@@ -2,10 +2,6 @@ import { element, get, number } from '../../shared/ui.mjs';
 import { firstProblem } from './rules.mjs';
 import { blankRow, columnsFor, COLUMNS, isFilled, MAX_TYPED_RECIPIENTS, pasteRows, rowElement } from './rows.mjs';
 
-/**
- * The "type recipients" table. Rows can be added with Enter, removed, or pasted from a spreadsheet.
- * `channels()` returns the selected channels; `notify(message)` shows a message under the table.
- */
 export class RecipientList {
     #table = get('recipient-table');
     #list = get('recipient-rows');
@@ -38,7 +34,6 @@ export class RecipientList {
         return this.#problem(editing)?.message ?? '';
     }
 
-    /** Marks and focuses the cell (or the consent box) with the first problem. */
     focusProblem(editing) {
         const found = this.#problem(editing);
         if (!found) return;
@@ -51,7 +46,6 @@ export class RecipientList {
         return this.#filled().length > 0;
     }
 
-    /** The filled rows as JSON, with only the visible columns. */
     payload() {
         const keys = this.#columns();
         return JSON.stringify(this.#filled().map(row => Object.fromEntries(keys.map(key => [key, row[key].trim()]))));
@@ -74,7 +68,6 @@ export class RecipientList {
         this.#updateCount();
     }
 
-    /** Only multi-cell pastes are handled here; a single value pastes normally. */
     #onPaste(event) {
         const at = this.#position(event.target);
         const text = event.clipboardData?.getData('text/plain') ?? '';
@@ -87,7 +80,6 @@ export class RecipientList {
         if (overflow) this.notify(`Only the first ${number.format(MAX_TYPED_RECIPIENTS)} rows fit. Upload a workbook for more.`);
     }
 
-    /** Enter moves down a row, adding one at the end. */
     #onKey(event) {
         const at = this.#position(event.target);
         if (!at?.key || event.key !== 'Enter' || event.isComposing) return;
@@ -108,7 +100,6 @@ export class RecipientList {
         this.#focusCell(this.#rows.length - 1, this.#columns()[0]);
     }
 
-    /** The last row is cleared instead of removed, so the table is never empty. */
     #removeRow(index) {
         if (this.#rows.length === 1) this.#rows[0] = blankRow();
         else this.#rows.splice(index, 1);
@@ -134,7 +125,6 @@ export class RecipientList {
         return this.#rows.filter(isFilled);
     }
 
-    /** Lets the compose form re-check the recipients field. */
     #changed() {
         this.#table.dispatchEvent(new Event('input'));
     }

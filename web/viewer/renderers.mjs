@@ -7,7 +7,6 @@ import { MAX_COLUMNS, MAX_ROWS, parseCsv, table } from './tables.mjs';
 
 const MAX_TEXT_LENGTH = 512 * 1024;
 
-/** One function per kind of file, each returning the preview element. */
 export const RENDERERS = {
     pdf: name => Object.assign(element('iframe', 'viewer-frame'), { src: fileUrl(name), title: name }),
     image: name => Object.assign(element('img', 'viewer-image'), { src: fileUrl(name), alt: name }),
@@ -23,7 +22,6 @@ async function renderText(name) {
     return element('pre', 'viewer-text', text.length > MAX_TEXT_LENGTH ? `${text.slice(0, MAX_TEXT_LENGTH)}\n…` : text);
 }
 
-/** Word files are converted to HTML in the browser, then cleaned. */
 async function renderWordDocument(name) {
     const [mammoth, arrayBuffer] = await Promise.all([loadScript('/vendor/mammoth.js', 'mammoth'), fetchFile(name)]);
     const template = document.createElement('template');
@@ -34,7 +32,6 @@ async function renderWordDocument(name) {
     return page;
 }
 
-/** Workbooks show one sheet at a time, with tabs when there are several. */
 async function renderWorkbook(name) {
     const [ExcelJS, buffer] = await Promise.all([loadScript('/vendor/exceljs.js', 'ExcelJS'), fetchFile(name)]);
     const workbook = new ExcelJS.Workbook();

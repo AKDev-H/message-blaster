@@ -1,9 +1,5 @@
 import { get, replayAnimation, sendJson, setError, toast } from '../shared/ui.mjs';
 
-/**
- * The "Write with AI" bar. It sends the prompt and the current draft, then puts the
- * result in the editor. `form` gives the composer state it needs.
- */
 export class AiWriter {
     #prompt = get('ai-prompt');
     #trigger = get('ai-generate');
@@ -27,7 +23,6 @@ export class AiWriter {
         this.syncLabel();
     }
 
-    /** "Rewrite" when there is already a message, "Write" when it is empty. */
     syncLabel() {
         this.#trigger.querySelector('.label').textContent = this.editor.value().text ? 'Rewrite' : 'Write';
     }
