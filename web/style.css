@@ -1853,6 +1853,7 @@ button.detail-count[aria-selected="true"] { border-bottom-color: var(--harbor); 
 
 /* ── Responsive: tablet (681–1180px) and phone (≤680px) ─────────────────────────── */
 .audit-actor-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.back-label { display: none; }
 .audit-actor-sub { display: none; overflow: hidden; color: var(--muted); font-size: .72rem; text-overflow: ellipsis; }
 button.detail-count { text-align: left; }
 
@@ -1894,47 +1895,292 @@ button.detail-count { text-align: left; }
     .date-range-month { width: 280px; }
 }
 
+/* ── Phone: native app shell ────────────────────────────────────────────────────
+   Translucent bars around the content; content as inset grouped lists on the page background;
+   pill chips for filters, a segmented control for views, and action tiles on pushed screens. */
 @media (max-width: 680px) {
-    /* Bottom tab bar: one row whatever the number of destinations, so the + button never covers a tab. */
-    .topnav { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+    :root { --group-radius: 16px; --row-inset: 66px; }
+    body { -webkit-tap-highlight-color: transparent; }
+    :is(.topbar, .topnav, .detail-head, .status-tabs, .channel-toggles, .detail-tabs, button, summary) { -webkit-user-select: none; user-select: none; }
+
+    /* Bars */
+    /* No backdrop-filter here: it would make the top bar the containing block of the fixed tab bar inside it. */
+    .topbar { background: var(--surface); border-bottom-color: var(--line-soft); }
+    .topbar-inner { min-height: 48px; }
+    .topnav { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top-color: var(--line-soft); }
     .nav-item { min-width: 0; }
     .nav-item span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; }
     .nav-item .icon { padding-inline: 14px; }
-
     .mode-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .mode-label { padding: 6px; }
     .user-avatar { width: 32px; height: 32px; }
     .back-to-dashboard { display: none; }
 
-    /* Status filters fill the row as an even segmented control. */
-    .status-tabs { display: flex; width: 100%; }
-    .status-tab { flex: 1 0 auto; justify-content: center; gap: 4px; padding-inline: 7px; font-size: .78rem; }
-    .status-count { font-size: .9rem; }
-    .queue-toolbar .filter-group { flex: 1; min-width: 0; }
-    .channel-toggles { flex: 1; }
-    .channel-toggle { flex: 1; justify-content: center; }
+    /* Large titles */
+    main { padding-top: 10px; }
+    .overview { margin: 6px 4px 14px; }
+    .overview h1 { font-size: 2.15rem; line-height: 1; }
+    .overview-count { font-size: .85rem; }
 
-    /* Campaign detail: counts become chips with their full labels, wrapping onto a second row. */
-    .detail-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
-    .detail-count { flex: none; flex-direction: row; align-items: baseline; gap: 6px; padding: 8px 13px; border-radius: 99px; white-space: nowrap; }
-    .detail-count strong { font-size: 1.1rem; }
-    button.detail-count { margin: 0; min-height: 40px; }
-    .channel-toolbar { flex-wrap: wrap; gap: 8px; padding-inline: 12px; }
+    /* Panels dissolve: toolbars sit on the page, lists become inset groups */
+    #queue.panel, .audit-panel.panel { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+    .queue-toolbar, .audit-toolbar { padding: 0 0 12px; border: 0; background: transparent; }
+    .queue-toolbar .toolbar-end { flex-wrap: nowrap; gap: 8px; }
 
-    /* Audit log rows become cards: who and outcome, then the action, then where and when. */
-    .audit-overview { align-items: flex-start; margin: 4px 2px 12px; }
-    .audit-toolbar { flex-wrap: wrap; gap: 8px; padding: 10px; }
+    :where(#campaign-table, .audit-table-wrap, .details-panel .table-wrap) {
+        overflow: hidden;
+        margin: 0;
+        border: 0;
+        border-radius: var(--group-radius);
+        background: var(--surface);
+        box-shadow: 0 0 0 1px var(--line-soft);
+    }
+    .details-panel .table-wrap { margin: 0 12px; border: 0; }
+    .table-wrap tr { border-top: 0; }
+    .table-wrap tbody tr + tr::before {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: var(--row-inset);
+        height: 1px;
+        background: var(--line-soft);
+        content: "";
+    }
+    :is(#detail-rows, #audit-rows) tr + tr::before { left: 16px; }
+    .pagination, .campaign-pagination, .audit-pagination { border-top: 0; background: transparent; }
+
+    /* Filter chips: one swipeable row that runs to the screen edges */
+    .status-tabs, .channel-toggles {
+        display: flex;
+        gap: 8px;
+        width: auto;
+        margin-inline: -12px;
+        padding: 0 12px;
+        overflow-x: auto;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        scroll-padding-inline: 12px;
+        scrollbar-width: none;
+    }
+    .status-tabs { justify-content: flex-start; max-width: none; margin-bottom: 8px; }
+    .queue-toolbar { display: block; }
+    .queue-toolbar .toolbar-end { display: flex; width: auto; }
+    .status-tabs::-webkit-scrollbar, .channel-toggles::-webkit-scrollbar { display: none; }
+    .status-tab, .channel-toggle {
+        flex: none;
+        gap: 6px;
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        background: var(--surface);
+        color: var(--ink);
+        font-size: .84rem;
+        box-shadow: none;
+    }
+    .status-dot { display: inline-block; }
+    .status-tab[aria-pressed="true"], .channel-toggle[aria-pressed="true"] { border-color: var(--harbor-deep); background: var(--harbor-deep); color: #fff; box-shadow: none; }
+    .status-tab[aria-pressed="true"] .status-count { color: #fff; }
+    .status-count { font-size: .92rem; }
+    .queue-toolbar .filter-group { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+    .queue-toolbar .channel-toggles { flex: 1; margin-right: 0; padding-right: 0; }
+    .filter-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    #template-menu > summary { width: 38px; min-height: 38px; padding: 0; justify-content: center; border-radius: 50%; }
+    #template-menu > summary .icon-chevron-down { display: none; }
+
+    /* Campaign rows: icon, name and channels; date and chevron trailing; progress and status underneath */
+    #campaign-rows tr:not(.skeleton-row) {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-areas: "who date chev" "progress status status";
+        gap: 6px 6px;
+        padding: 12px 10px 12px 14px;
+    }
+    #campaign-rows tr:not(.skeleton-row):active { background: var(--sunken); }
+    #campaign-rows .date-cell { grid-area: date; align-self: start; padding-top: 2px; font-size: .74rem; }
+    #campaign-rows .open-cell { display: block; grid-area: chev; align-self: start; }
+    #campaign-rows .open-cell .button { width: 22px; min-height: 22px; padding: 0; color: #a3b0ad; }
+    #campaign-rows .open-cell .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    #campaign-rows td:nth-child(2) { grid-area: status; }
+    #campaign-rows td:nth-child(3) { grid-area: progress; padding-left: 52px; }
+    #campaign-rows .channel-icon { width: 40px; height: 40px; border-radius: 12px; }
+    #campaign-rows .campaign-identity > div { min-width: 0; }
+    #campaign-rows .campaign-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Pushed screen: nav bar, large title, action tiles */
+    .details-panel { background: var(--paper); }
+    .detail-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        position: relative;
+        padding: calc(48px + env(safe-area-inset-top)) 12px 14px;
+        border-bottom: 0;
+        background: var(--paper);
+        backdrop-filter: none;
+    }
+    .detail-title { display: contents; }
+    #close-detail {
+        position: fixed;
+        z-index: 3;
+        top: 0;
+        right: 0;
+        left: 0;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        width: auto;
+        height: calc(44px + env(safe-area-inset-top));
+        gap: 2px;
+        padding: env(safe-area-inset-top) 12px 0 4px;
+        border-bottom: 1px solid var(--line-soft);
+        border-radius: 0;
+        background: color-mix(in srgb, var(--paper) 86%, transparent);
+        backdrop-filter: blur(18px) saturate(1.6);
+        color: var(--harbor);
+        font-weight: 560;
+    }
+    #close-detail .icon { width: 24px; height: 24px; }
+    #close-detail .icon-arrow-left { display: none; }
+    #close-detail::before {
+        width: 12px;
+        height: 12px;
+        margin: 0 4px 0 6px;
+        border-bottom: 2.5px solid currentColor;
+        border-left: 2.5px solid currentColor;
+        border-radius: 1px;
+        content: "";
+        transform: rotate(45deg);
+    }
+    .back-label { display: inline; font-size: 1.02rem; }
+    .detail-heading-row { flex-wrap: wrap; gap: 6px 10px; padding-top: 6px; }
+    .detail-heading-row h2 { font-family: var(--display); font-size: 1.9rem; font-stretch: 85%; line-height: 1.05; }
+    .detail-description { margin-top: 6px; }
+    .detail-head .actions, #channel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+        margin-top: 16px;
+        padding: 0;
+    }
+    .detail-head .actions .button, #channel-actions .button {
+        flex: 1 1 0;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+        min-height: 60px;
+        padding: 8px 4px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--harbor-deep);
+        font-size: .72rem;
+        font-weight: 620;
+        box-shadow: 0 0 0 1px var(--line-soft);
+    }
+    :is(.detail-head .actions, #channel-actions) .button .icon { width: 20px; height: 20px; }
+    :is(.detail-head .actions, #channel-actions) .button .label { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+    /* The main action (start, resume, send both) takes its own full-width row above the tiles. */
+    :is(.detail-head .actions, #channel-actions) .button.primary {
+        flex-basis: 100%;
+        flex-direction: row;
+        gap: 8px;
+        min-height: 48px;
+        background: var(--harbor);
+        color: #fff;
+        font-size: .92rem;
+        box-shadow: none;
+    }
+    :is(.detail-head .actions, #channel-actions) .button.quiet-danger { color: var(--rust); }
+    :is(.detail-head .actions, #channel-actions) .button:disabled { opacity: .5; }
+    #channel-actions { margin-top: 10px; }
+
+    /* Segmented control for Overview / channel views */
+    .detail-tabs {
+        display: flex;
+        gap: 2px;
+        margin: 0 12px 4px;
+        padding: 2px;
+        border: 0;
+        border-radius: 11px;
+        background: #e4e9e7;
+    }
+    .detail-tabs [role="tab"] {
+        flex: 1;
+        justify-content: center;
+        min-height: 34px;
+        margin: 0;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 9px;
+        color: var(--ink);
+        font-size: .86rem;
+    }
+    .detail-tabs [role="tab"][aria-selected="true"] { background: var(--surface); box-shadow: 0 1px 3px rgb(30 42 43 / .14), 0 0 0 .5px rgb(30 42 43 / .06); }
+    .detail-tabs [role="tab"] .channel-icon { width: 18px; height: 18px; }
+    .detail-tabs [role="tab"]:focus { outline: none; }
+    .detail-tabs [role="tab"]:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+    /* Count filters: the same compact, swipeable chip row as the campaign list's status filters. */
+    .detail-summary {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding: 12px;
+        overflow-x: auto;
+        scroll-padding-inline: 12px;
+        scrollbar-width: none;
+    }
+    .detail-summary::-webkit-scrollbar { display: none; }
+    .detail-count {
+        flex: none;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        background: var(--surface);
+        color: var(--ink);
+        font-size: .84rem;
+        font-weight: 560;
+        white-space: nowrap;
+    }
+    .detail-count strong { order: 1; font-size: .92rem; line-height: 1; }
+    button.detail-count { min-height: 36px; margin: 0; padding: 0 14px; }
+    button.detail-count:focus { outline: none; }
+    button.detail-count:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    button.detail-count[aria-selected="true"] { border-color: var(--harbor-deep); background: var(--harbor-deep); color: #fff; }
+    button.detail-count[aria-selected="true"] strong { color: #fff; }
+
+    .channel-toolbar { display: block; padding: 4px 12px 12px; }
+    .detail-channels { padding: 0 12px 12px; }
+    .channel-card { border: 0; border-radius: var(--group-radius); background: var(--surface); box-shadow: 0 0 0 1px var(--line-soft); }
+
+    /* Recipient rows */
+    #detail-rows tr:not(.skeleton-row) { padding: 14px 16px; }
+
+    /* Audit log: date filter styled as a search field, events as list rows */
+    .audit-overview { align-items: flex-start; margin: 6px 4px 14px; }
+    #audit-refresh { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
+    #audit-refresh span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .audit-toolbar { flex-wrap: wrap; gap: 8px; }
     .audit-filters { width: 100%; }
     .audit-filters .date-range { flex: 1; }
-    .audit-filters .date-range-trigger { width: 100%; min-height: 40px; justify-content: flex-start; }
+    .audit-filters .date-range-trigger { width: 100%; min-height: 42px; justify-content: flex-start; border: 0; border-radius: 12px; background: #e4e9e7; }
+    .audit-filters .date-range-trigger.active { background: var(--harbor-wash); }
     .audit-filters .date-range-trigger .icon-chevron-down { margin-left: auto; }
-    .audit-filters #audit-reset { min-height: 40px; }
+    .audit-filters #audit-reset { min-height: 42px; }
     .audit-toolbar .toolbar-end:has(#audit-status:empty) { display: none; }
 
     .audit-table-wrap .audit-table tr {
         grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas: "actor outcome" "action source" "target time";
         gap: 6px 12px;
+        padding: 13px 16px;
     }
     .audit-table-wrap .audit-table td { border: 0; padding: 0; }
     .audit-table-wrap .audit-table td:nth-child(1) { grid-area: time; justify-self: end; font-size: .72rem; }
@@ -1945,18 +2191,39 @@ button.detail-count { text-align: left; }
     .audit-table-wrap .audit-table td:nth-child(7) { grid-area: outcome; justify-self: end; }
     .audit-table-wrap .audit-table td:is(:nth-child(3), :nth-child(8)) { display: none; }
     .audit-table-wrap .audit-table td[colspan] { grid-area: auto; }
-    .audit-table-wrap .audit-table tr.skeleton-row { grid-template-areas: "actor outcome" "action source" "target time"; }
+    .audit-table-wrap .audit-table tbody tr:hover td { background: none; }
     .audit-actor { max-width: 100%; }
-    .audit-avatar { width: 30px; height: 30px; font-size: .7rem; }
+    .audit-avatar { width: 32px; height: 32px; font-size: .7rem; }
     .audit-target { max-width: 100%; }
     .audit-action { font-size: .8rem; }
 
-    /* Date range picker as a bottom sheet over a dimmed page. */
-    .date-range-popover { box-shadow: 0 0 0 100vmax rgb(30 42 43 / .32), 0 -8px 30px -10px rgb(30 42 43 / .3); border-radius: 18px; }
+    /* Date range picker as a bottom sheet with a grabber over a dimmed page */
+    .date-range-popover { padding-top: 14px; border: 0; border-radius: 20px 20px 0 0; box-shadow: 0 0 0 100vmax rgb(30 42 43 / .36); }
+    .date-range-popover { right: 0; bottom: 0; left: 0; }
+    .date-range-popover::before {
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 38px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--line);
+        content: "";
+        transform: translateX(-50%);
+    }
+    .date-range-presets { gap: 8px; padding: 6px 12px 12px; scrollbar-width: none; }
+    .date-range-preset { flex: none; padding: 8px 14px; border: 1px solid var(--line); border-radius: 99px; }
+    .date-range-preset[aria-pressed="true"] { border-color: var(--harbor-deep); background: var(--harbor-deep); color: #fff; }
     .date-range-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-    .date-range-month { width: min(100%, 340px); }
-    .date-range-day { height: 40px; }
+    .date-range-month { width: min(100%, 360px); }
+    .date-range-day { height: 44px; border-radius: 12px; }
+    .date-range-day.range-start:not(.range-end) { border-radius: 12px 0 0 12px; }
+    .date-range-day.range-end:not(.range-start) { border-radius: 0 12px 12px 0; }
     .date-range-months { padding-inline: 10px; }
-    .date-range-footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
-    .date-range-footer .button { min-height: 42px; }
+    .date-range-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    .date-range-footer .button { min-height: 44px; border-radius: 12px; }
+
+    /* Touch feedback */
+    :is(.button, .status-tab, .channel-toggle, .detail-count, .date-range-preset, .detail-tabs [role="tab"]):active:not(:disabled) { transform: scale(.96); }
+    :is(.button, .status-tab, .channel-toggle, .detail-count, .date-range-preset) { transition: transform 120ms var(--ease), background-color var(--fast), color var(--fast); }
 }

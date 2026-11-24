@@ -44,6 +44,23 @@ describe('Responsive layout', () => {
         cy.get('#settings').should('be.visible');
     });
 
+    it('opens a campaign on a phone as a pushed screen with a back bar and action tiles', () => {
+        cy.task('campaigns:seed', { count: 1 });
+        cy.viewport(...SIZES.phone);
+        cy.visit('/');
+        cy.get('#campaign-rows [data-campaign]').first().click();
+        cy.get('#close-detail').should('be.visible').and('contain.text', 'Campaigns').then(back => {
+            expect(rect(back[0]).top, 'back bar pinned to the top').to.be.at.most(1);
+            expect(rect(back[0]).width, 'back bar spans the screen').to.equal(SIZES.phone[0]);
+        });
+        cy.get('#detail-actions .button').should('have.length.greaterThan', 1).each(tile => {
+            expect(rect(tile[0]).height, `${tile.text().trim()} is a touch-sized tile`).to.be.at.least(44);
+        });
+        cy.get('.details-panel').scrollTo('bottom', { ensureScrollable: false });
+        cy.get('#close-detail').should('be.visible').click();
+        cy.location('pathname').should('eq', '/');
+    });
+
     it('shows the audit log as readable cards on a phone', () => {
         cy.viewport(...SIZES.phone);
         cy.task('audit:seed', { email: 'dashboard@gmail.com', name: 'Dana Board' });

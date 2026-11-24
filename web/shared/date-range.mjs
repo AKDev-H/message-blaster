@@ -1,5 +1,3 @@
-// A popover date-range picker: presets on the left, two months of calendar on the right.
-// Days are plain local dates written as "YYYY-MM-DD" so they survive URLs and comparisons unchanged.
 import { icon } from './icons.mjs';
 import { button, element } from './ui.mjs';
 
