@@ -27,10 +27,6 @@ export class DateRangePicker {
     #focus = '';
     #month;
 
-    /**
-     * @param {HTMLElement} root  Empty container the picker renders into.
-     * @param {{ min?: string, max?: string, presets?: { label: string, days: number }[], onChange: (range: { from: string, to: string }) => void }} options
-     */
     constructor(root, { min = '', max = '', presets = [], onChange }) {
         this.#root = root;
         this.#min = min;
@@ -44,7 +40,6 @@ export class DateRangePicker {
         return { ...this.#value };
     }
 
-    /** Sets the shown range without notifying `onChange`. */
     set value({ from = '', to = '' }) {
         this.#value = { from, to };
         this.#renderLabel();
@@ -53,7 +48,6 @@ export class DateRangePicker {
     open() {
         this.#draft = { ...this.#value };
         this.#hover = '';
-        // Two months show side by side on wider screens, so lead with the month before the range's end there.
         const end = this.#value.to || this.#max || today();
         this.#month = startOfMonth(SINGLE_MONTH.matches ? end : addMonths(end, -1));
         if (this.#min && this.#month < startOfMonth(this.#min)) this.#month = startOfMonth(this.#min);
@@ -180,7 +174,6 @@ export class DateRangePicker {
     }
 
     #monthGrid(month, side) {
-        // Both months carry both arrows; CSS hides the inner pair while two months sit side by side.
         const section = element('section', 'date-range-month');
         const head = element('header', 'date-range-month-head');
         const title = element('h3', '', monthTitle.format(toDate(month)));
@@ -215,7 +208,6 @@ export class DateRangePicker {
         return cell;
     }
 
-    /** Re-marks the start, end and in-between days without rebuilding the grid. */
     #paintRange() {
         const { from } = this.#draft;
         const end = this.#draft.to || this.#hover;
@@ -247,7 +239,6 @@ function navButton(label, iconName, onClick) {
     return nav;
 }
 
-/** Milliseconds for the first and last instant of a local-date range, for querying timestamps. */
 export function rangeBounds({ from, to }) {
     return {
         from: from ? toDate(from).getTime() : undefined,

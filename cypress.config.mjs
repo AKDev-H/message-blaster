@@ -71,7 +71,6 @@ function localDay(time) {
     return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map(part => String(part).padStart(2, '0')).join('-');
 }
 
-// Gives the signed-in test user a Google profile and adds audit events of known ages; returns each event's local date.
 function seedAudit({ email, name }) {
     const db = new DatabaseSync(databasePath);
     try {

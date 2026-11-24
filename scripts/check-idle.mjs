@@ -1,4 +1,3 @@
-// Runs before `npm ci`, so it must not import anything from node_modules.
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
