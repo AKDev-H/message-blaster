@@ -85,10 +85,13 @@ Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withd
 
 ## Using the dashboard
 
-1. **New campaign**: pick Gmail, WhatsApp or both, then download the Excel template.
+1. **New campaign**: pick Gmail, WhatsApp or both, then download the Excel template. Choosing both creates **one campaign** with one row in the list and one link, such as `/campaigns/customer-renewals`.
 2. **Add recipients**: fill in the workbook and upload it, or switch to **Type in** and enter names with an email or phone number (up to 500; paste rows straight from a spreadsheet). Typed recipients are saved as `Opted In` once you confirm their consent. Set fallback subject, message and attachment for blank cells. Type `{{` to insert a field. With `GROQ_API_KEY` set, **Write** drafts copy with AI.
-3. **Import and preview**: check the rendered messages and skipped rows.
-4. **Start**: enter the campaign ID to approve it. Pause, cancel, retry and review from the queue.
+3. **Customize each channel** (both channels only): write the message once in **Shared**, then open **Gmail** or **WhatsApp** to give that channel its own message, attachment or Gmail subject. Each tab shows what it inherits; **Reset to shared** removes the override. Workbook cells still win for rows that fill them in.
+4. **Import and preview**: the campaign page opens. **Overview** shows people reached and successful, failed, delivered and read sends; the **Gmail** and **WhatsApp** tabs list each recipient's rendered message, attachment, status, failures and tries.
+5. **Send**: type the campaign link name to approve. **Send both** checks both channels first, then sends Gmail and WhatsApp one after the other. If the first channel is paused, cancelled or fails, or the dashboard restarts, the second waits until you send it explicitly. Pause, cancel, retry, review and export per channel.
+
+Counting: **People sent to** counts each person once if any channel accepted their message, so someone reached on both channels is one person but two **successful sends**. Campaigns grouped from older split imports without a shared workbook show per-channel counts instead. Once a channel starts, its content is locked; the other channel stays editable until it is scheduled to send. Renaming changes the display name only, never the link.
 
 **Settings** holds Gmail credentials (the App Password is stored encrypted), WhatsApp QR linking, send pacing and the **Test send** that unlocks campaigns for each sender account. The dashboard and the CLI both read them. Keep the dashboard running while a campaign sends.
 
@@ -149,7 +152,11 @@ npm run campaign:recover                                   # after a crash
 npm run campaign:review -- 42 --outcome SENT --note 'Confirmed'
 npm run whatsapp:connect -- --listen                       # collect late delivery/read receipts
 npm run db:backup -- ./storage/backup.db
+npm run campaign:pairs                                     # report older split -gmail/-whatsapp imports
+npm run campaign:group -- launch-gmail launch-whatsapp     # show a confirmed pair as one campaign
 ```
+
+Upgrading puts every existing campaign on its own page, keeping its ID, history and CLI commands. Older dashboard imports that sent to both channels appear as two campaigns until you confirm them: `campaign:pairs` lists candidates with their evidence (same workbook, created together), and `campaign:group` refuses pairs that only share a name unless you pass `--force`. Back up first with `db:backup`.
 
 Imports are immutable snapshots. To fix a workbook, re-import it under a new campaign ID.
 
@@ -205,6 +212,7 @@ npm run check      # lint + typecheck + unit tests
 npm run format     # auto-fix formatting
 npm run test:e2e   # Cypress, headless (isolated DB on port 4319, external services stubbed)
 npm run cy:open    # Cypress, interactive
+npm run bench:campaigns  # list, detail, import and live-update timings at 1,000 and 5,000 recipients
 ```
 
 ```
@@ -219,7 +227,7 @@ src/
   errors.ts     NotFoundError / ConflictError, mapped to HTTP 404 / 409
 web/            dashboard frontend
   shared/       DOM and request helpers, icons, labels
-  campaigns/    campaign table, details panel, action buttons
+  campaigns/    campaign list, campaign page (overview + channel tabs), action buttons
   compose/      new/edit campaign dialog, recipients, attachments, AI writer
   editor/       message editor and placeholder menu
   settings/     settings dialog, Gmail/WhatsApp/test-send panels

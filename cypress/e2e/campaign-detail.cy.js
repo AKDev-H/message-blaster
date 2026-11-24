@@ -1,4 +1,4 @@
-const optedIn = { 'Consent Status': 'Opted In' };
+const optedIn = { 'Consent Status': 'Opted In', Subject: 'Your renewal' };
 const rows = [
     { 'Client Name': 'Ari', 'Email Address': 'ari@example.com', 'Phone Number': '+60123456789', ...optedIn },
     { 'Client Name': 'Ben', 'Email Address': 'ben@example.com', ...optedIn },

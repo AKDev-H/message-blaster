@@ -1,4 +1,4 @@
-import type { ServerResponse } from "node:http";
+import type { ServerResponse } from 'node:http';
 
 const PROGRESS_CHECK_MS = 500;
 const HEARTBEAT_MS = 15_000;
@@ -27,7 +27,7 @@ export class LiveUpdates {
         const keepAlive = () => {
             this.revalidate();
             for (const client of this.#subscribers.keys())
-                this.write(client, ": keep-alive\n\n", false);
+                this.write(client, ': keep-alive\n\n', false);
         };
         this.#timers = [
             setInterval(() => this.publishSafely(), PROGRESS_CHECK_MS).unref(),
@@ -48,12 +48,12 @@ export class LiveUpdates {
 
     subscribe(res: ServerResponse, sessionActive: () => boolean): void {
         res.writeHead(200, {
-            "Content-Type": "text/event-stream; charset=utf-8",
-            Connection: "keep-alive",
-            "X-Accel-Buffering": "no",
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
         });
         this.#subscribers.set(res, sessionActive);
-        res.on("close", () => this.forget(res));
+        res.on('close', () => this.forget(res));
         this.write(res, `retry: 2000\n${this.event()}`);
     }
 
@@ -65,10 +65,7 @@ export class LiveUpdates {
 
     revalidate(): void {
         for (const [client, sessionActive] of this.#subscribers) {
-            try {
-                if (sessionActive()) continue;
-            } catch {
-            }
+            if (stillSignedIn(sessionActive)) continue;
             this.forget(client);
             client.end();
         }
@@ -111,7 +108,7 @@ export class LiveUpdates {
         }
         if (client.write(event)) return;
         this.#blocked.add(client);
-        client.once("drain", () => this.onDrain(client));
+        client.once('drain', () => this.onDrain(client));
     }
 
     private onDrain(client: ServerResponse): void {
@@ -130,5 +127,13 @@ export class LiveUpdates {
         this.#subscribers.delete(client);
         this.#blocked.delete(client);
         this.#pending.delete(client);
+    }
+}
+
+function stillSignedIn(sessionActive: () => boolean): boolean {
+    try {
+        return sessionActive();
+    } catch {
+        return false;
     }
 }

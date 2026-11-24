@@ -2,6 +2,7 @@ import { Command, CommanderError } from 'commander';
 import { registerAuthCommands } from './commands/auth.js';
 import { registerCampaignCommands } from './commands/campaign.js';
 import { registerConsentCommands } from './commands/consent.js';
+import { registerGroupCommands } from './commands/groups.js';
 import { registerSetupCommands } from './commands/setup.js';
 import { registerTestCommands } from './commands/test.js';
 import { registerWhatsAppCommands } from './commands/whatsapp.js';
@@ -21,6 +22,7 @@ function registerAllCommands(program: Command): void {
     registerAuthCommands(program);
     registerWhatsAppCommands(program);
     registerCampaignCommands(program);
+    registerGroupCommands(program);
     registerTestCommands(program);
     registerConsentCommands(program);
 }

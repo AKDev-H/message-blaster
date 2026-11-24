@@ -44,14 +44,16 @@ function seedCampaigns({ count }) {
     const db = new DatabaseSync(databasePath);
     try {
         db.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
-        const campaign = db.prepare('INSERT INTO campaigns(id, state, is_test, created_at, updated_at, channel) VALUES (?, \'Ready\', 0, ?, ?, ?)');
+        const group = db.prepare('INSERT INTO campaign_groups(slug, name, contact_identity, created_at, updated_at) VALUES (?, ?, \'row\', ?, ?)');
+        const campaign = db.prepare('INSERT INTO campaigns(id, state, is_test, created_at, updated_at, channel, group_id) VALUES (?, \'Ready\', 0, ?, ?, ?, ?)');
         const message = db.prepare(`INSERT INTO messages(campaign_id, row_number, client_id, client_name, recipient, message, pdf_filename,
             consent_status, eligible, status) VALUES (?, 1, 'c1', 'Ari', ?, 'Hi Ari', '', 'Opted In', 1, 'PENDING')`);
         for (let index = 0; index < count; index += 1) {
             const channel = index % 3 === 0 ? 'whatsapp' : 'gmail';
             const id = `${channel === 'gmail' ? 'newsletter' : 'promo'}-${String(index + 1).padStart(2, '0')}`;
             const created = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString();
-            campaign.run(id, created, created, channel);
+            const groupId = group.run(id, id, created, created).lastInsertRowid;
+            campaign.run(id, created, created, channel, groupId);
             message.run(id, channel === 'gmail' ? 'ari@example.com' : '+60123456789');
         }
         db.exec('COMMIT');

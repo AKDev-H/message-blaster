@@ -28,6 +28,8 @@
     "campaign:review": "tsx src/index.ts campaign:review",
     "whatsapp:confirm-test": "tsx src/index.ts whatsapp:confirm-test",
     "campaign:recover": "tsx src/index.ts campaign:recover",
+    "campaign:pairs": "tsx src/index.ts campaign:pairs",
+    "campaign:group": "tsx src/index.ts campaign:group",
     "lint": "eslint --max-warnings 0 eslint.config.mjs cypress.config.mjs src tests web cypress",
     "format": "npm run lint -- --fix --fix-type layout",
     "check": "npm run lint && npm run typecheck && npm test",
@@ -35,7 +37,8 @@
     "deploy": "bash scripts/deploy.sh",
     "cy:server": "rm -rf storage/cypress/cypress.db* storage/cypress/auth* && DATABASE_URL=storage/cypress/cypress.db ATTACHMENTS_DIR=storage/cypress/attachments AUTH_DIR=storage/cypress/auth LOG_DIR=storage/cypress/logs GMAIL_USER= GMAIL_APP_PASSWORD= DEFAULT_COUNTRY= MESSAGE_DELAY_MS= SECRET_KEY_FILE=storage/cypress/secret.key WEB_PORT=4319 DRY_RUN=true GROQ_API_KEY=cypress-stub tsx tests/support/cypress-server.ts",
     "cy:open": "start-server-and-test cy:server http-get://127.0.0.1:4319/login 'cypress open --e2e'",
-    "test:e2e": "start-server-and-test cy:server http-get://127.0.0.1:4319/login 'cypress run --e2e'"
+    "test:e2e": "start-server-and-test cy:server http-get://127.0.0.1:4319/login 'cypress run --e2e'",
+    "bench:campaigns": "tsx scripts/bench-campaigns.ts"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "5.3.0",

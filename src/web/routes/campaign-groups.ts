@@ -267,8 +267,8 @@ function checkVersion(group: CampaignGroup, members: readonly CampaignSummary[],
 
 function readGroupName(value: unknown): string {
     const name = typeof value === 'string' ? value.trim() : '';
-    // eslint-disable-next-line no-control-regex -- Display names are single-line text.
-    if (!name || name.length > 100 || /[\u0000-\u001f\u007f]/u.test(name)) throw new HttpError(400, 'Use 1–100 characters on one line.', 'id');
+    const singleLine = [...name].every(character => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
+    if (!name || name.length > 100 || !singleLine) throw new HttpError(400, 'Use 1–100 characters on one line.', 'id');
     return name;
 }
 
