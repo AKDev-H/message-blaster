@@ -2,89 +2,135 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { Logger } from 'pino';
 import type { Environment } from '../config/env.js';
+import type { ClaimedMessage, MessageRecord, Store } from '../store/index.js';
 import type { MessageTransport, OutgoingMessage } from '../types/index.js';
-import { readAttachment } from '../services/attachment.service.js';
-import type { MessageRecord, Store } from '../services/message.service.js';
+import { finishPreparationFailure, preparePayload, type Payload, type PreparedPayload } from './payload.js';
 
 type WorkerSettings = Pick<
     Environment,
-    'ATTACHMENTS_DIR' | 'SENDER_CONCURRENCY' | 'MAX_MESSAGES_PER_RUN' |
-    'MESSAGE_DELAY_MS' | 'MAX_RETRY_ATTEMPTS' | 'RETRY_DELAY_MS'
+    'ATTACHMENTS_DIR' | 'SENDER_CONCURRENCY' | 'MAX_MESSAGES_PER_RUN' | 'MESSAGE_DELAY_MS' | 'MAX_RETRY_ATTEMPTS' | 'RETRY_DELAY_MS'
 >;
 
 const WORKER_POLL_MS = 1_000;
-const MAX_RETRY_DELAY_MS = 3_600_000;
-const TRANSIENT_FILE_ERRORS = new Set(['EAGAIN', 'EBUSY', 'EMFILE', 'ENFILE', 'ETIMEDOUT']);
 
-export async function runCampaign(
-    store: Store,
-    id: string,
-    settings: WorkerSettings,
-    transport: MessageTransport,
-    logger: Logger,
-    signal: AbortSignal,
-): Promise<number> {
-    const active = new Set<Promise<void>>();
-    let attempted = 0;
-    let nextSendAt = 0;
-    let workerFailure: unknown;
+export async function runCampaign(store: Store, id: string, settings: WorkerSettings, transport: MessageTransport,
+    logger: Logger, signal: AbortSignal): Promise<number> {
+    const run = new CampaignRun(store, id, settings, transport, logger, signal);
     try {
-        while (!signal.aborted && attempted < settings.MAX_MESSAGES_PER_RUN) {
-            if (workerFailure) throw workerFailure;
-            if (store.getCampaign(id).state !== 'Running') break;
-            if (active.size >= settings.SENDER_CONCURRENCY) {
-                await Promise.race(active);
-                continue;
-            }
-            const candidate = store.peek(id);
-            if (!candidate) {
-                if (active.size) {
-                    await Promise.race(active);
-                    continue;
-                }
-                const due = store.nextAvailableAt(id);
-                if (due === undefined) break;
-                await pause(Math.max(5, due - Date.now()), signal);
-                continue;
-            }
-            if (!transport.isReady) {
-                if (!await waitForReconnect(transport, signal)) break;
-                continue;
-            }
-            const pacingWait = nextSendAt - Date.now();
-            if (pacingWait > 0) {
-                await pause(pacingWait, signal);
-                continue;
-            }
-            const result = await preparePayload(candidate, settings.ATTACHMENTS_DIR);
-            if (signal.aborted) break;
-            if (!transport.isReady) continue;
-            const transportId = transport.createMessageId?.() ?? `3EB0${randomBytes(9).toString('hex').toUpperCase()}`;
-            const claimed = store.claim(id, candidate.id, transportId);
-            if (!claimed) continue;
-            attempted += 1;
-            if ('error' in result) {
-                finishPreparationFailure(store, claimed, result, settings);
-                continue;
-            }
-            if (!store.canSubmit(claimed.id)) {
-                store.finish(claimed.id, 'RETRY', 'Campaign paused before submission', Date.now());
-                continue;
-            }
-            nextSendAt = Date.now() + settings.MESSAGE_DELAY_MS;
-            const task = submit(store, claimed.id, { id: claimed.transportMessageId, ...result.payload }, transport, logger)
-                .catch(error => { workerFailure ??= error; })
-                .finally(() => { active.delete(task); });
-            active.add(task);
-        }
+        let sending = true;
+        while (sending) sending = run.canContinue() && await run.step();
     } finally {
-        await Promise.all(active);
+        await run.waitForSubmissions();
     }
-    if (workerFailure) throw workerFailure;
+    run.throwIfFailed();
+    return run.finish();
+}
 
-    const final = store.settleCampaign(id);
-    if (final.state === 'Running') store.pauseIfRunning(id);
-    return attempted;
+class CampaignRun {
+    private readonly submissions = new Set<Promise<void>>();
+    private attempted = 0;
+    private nextSendAt = 0;
+    private failure: unknown;
+
+    constructor(
+        private readonly store: Store,
+        private readonly id: string,
+        private readonly settings: WorkerSettings,
+        private readonly transport: MessageTransport,
+        private readonly logger: Logger,
+        private readonly signal: AbortSignal,
+    ) {}
+
+    canContinue(): boolean {
+        return !this.signal.aborted && this.attempted < this.settings.MAX_MESSAGES_PER_RUN;
+    }
+
+    async step(): Promise<boolean> {
+        this.throwIfFailed();
+        if (this.store.getCampaign(this.id).state !== 'Running') return false;
+        if (this.submissions.size >= this.settings.SENDER_CONCURRENCY) return this.waitForFreeSlot();
+        const candidate = this.store.peek(this.id);
+        if (!candidate) return this.waitForQueuedMessage();
+        if (!this.transport.isReady) return waitForReconnect(this.transport, this.signal);
+        if (await this.waitForPacing()) return true;
+        return this.attempt(candidate);
+    }
+
+    throwIfFailed(): void {
+        if (this.failure) throw this.failure;
+    }
+
+    async waitForSubmissions(): Promise<void> {
+        await Promise.all(this.submissions);
+    }
+
+    finish(): number {
+        if (this.store.settleCampaign(this.id).state === 'Running') this.store.pauseIfRunning(this.id);
+        return this.attempted;
+    }
+
+    private async waitForFreeSlot(): Promise<boolean> {
+        await Promise.race(this.submissions);
+        return true;
+    }
+
+    private async waitForQueuedMessage(): Promise<boolean> {
+        if (this.submissions.size) return this.waitForFreeSlot();
+        const due = this.store.nextAvailableAt(this.id);
+        if (due === undefined) return false;
+        await pause(Math.max(5, due - Date.now()), this.signal);
+        return true;
+    }
+
+    private async waitForPacing(): Promise<boolean> {
+        const remaining = this.nextSendAt - Date.now();
+        if (remaining <= 0) return false;
+        await pause(remaining, this.signal);
+        return true;
+    }
+
+    private async attempt(candidate: MessageRecord): Promise<boolean> {
+        const prepared = await preparePayload(candidate, this.settings.ATTACHMENTS_DIR);
+        if (this.signal.aborted) return false;
+        if (!this.transport.isReady) return true;
+        const claimed = this.store.claim(this.id, candidate.id, this.newTransportId());
+        if (!claimed) return true;
+        this.attempted += 1;
+        this.handOff(claimed, prepared);
+        return true;
+    }
+
+    private handOff(claimed: ClaimedMessage, prepared: PreparedPayload): void {
+        if ('error' in prepared) return finishPreparationFailure(this.store, claimed, prepared, this.settings);
+        if (!this.store.canSubmit(claimed.id)) return this.store.finish(claimed.id, 'RETRY', 'Campaign paused before submission', Date.now());
+        this.submitInBackground(claimed, prepared.payload);
+    }
+
+    private submitInBackground(claimed: ClaimedMessage, payload: Payload): void {
+        this.nextSendAt = Date.now() + this.settings.MESSAGE_DELAY_MS;
+        const message = { id: claimed.transportMessageId, ...payload };
+        const task = submit(this.store, claimed.id, message, this.transport, this.logger)
+            .catch(error => { this.failure ??= error; })
+            .finally(() => { this.submissions.delete(task); });
+        this.submissions.add(task);
+    }
+
+    private newTransportId(): string {
+        return this.transport.createMessageId?.() ?? `3EB0${randomBytes(9).toString('hex').toUpperCase()}`;
+    }
+}
+
+async function submit(store: Store, recordId: number, message: OutgoingMessage, transport: MessageTransport, logger: Logger) {
+    let result: Awaited<ReturnType<MessageTransport['send']>>;
+    try {
+        result = await transport.send(message);
+    } catch {
+        store.finish(recordId, 'UNKNOWN', 'Transport outcome uncertain. Manual review required.');
+        logger.warn({ recordId }, 'Message submission requires manual review');
+        return;
+    }
+    store.finish(recordId, 'SENT', undefined, undefined, result?.acknowledged);
+    logger.info({ recordId }, 'Message submitted to transport');
 }
 
 async function waitForReconnect(transport: MessageTransport, signal: AbortSignal): Promise<boolean> {
@@ -99,75 +145,10 @@ async function waitForReconnect(transport: MessageTransport, signal: AbortSignal
     }
 }
 
-async function pause(ms: number, signal: AbortSignal) {
+async function pause(ms: number, signal: AbortSignal): Promise<void> {
     try {
         await sleep(Math.min(ms, WORKER_POLL_MS), undefined, { signal });
     } catch (error) {
         if (!signal.aborted) throw error;
     }
-}
-
-interface PreparationFailure {
-    error: string;
-    transient: boolean;
-}
-
-type PreparedPayload = { payload: Omit<OutgoingMessage, 'id'> } | PreparationFailure;
-
-function finishPreparationFailure(
-    store: Store,
-    record: MessageRecord,
-    failure: PreparationFailure,
-    settings: WorkerSettings,
-): void {
-    if (!failure.transient || record.attemptCount > settings.MAX_RETRY_ATTEMPTS) {
-        store.finish(record.id, 'FAILED', failure.error);
-        return;
-    }
-
-    const retryDelay = Math.min(MAX_RETRY_DELAY_MS, settings.RETRY_DELAY_MS * 2 ** (record.attemptCount - 1));
-    store.finish(record.id, 'RETRY', failure.error, Date.now() + retryDelay);
-}
-
-function isTransientFileError(error: unknown): boolean {
-    return error instanceof Error && 'code' in error && TRANSIENT_FILE_ERRORS.has(String(error.code));
-}
-
-async function preparePayload(record: MessageRecord, attachmentDir: string): Promise<PreparedPayload> {
-    const payload: Omit<OutgoingMessage, 'id'> = { phone: record.phone, text: record.message };
-    if (record.email !== undefined) payload.email = record.email;
-    if (record.subject !== undefined) payload.subject = record.subject;
-    if (record.messageHtml !== undefined) payload.html = record.messageHtml;
-    if (!record.pdfFilename) return { payload };
-    try {
-        const attachment = await readAttachment(attachmentDir, record.pdfFilename);
-        if (record.attachmentHash !== attachment.sha256) {
-            return { error: 'Attachment error: PDF changed since import', transient: false };
-        }
-        payload.attachment = { name: attachment.name, data: attachment.data };
-        return { payload };
-    } catch (error) {
-        const transient = isTransientFileError(error) || (error instanceof Error && isTransientFileError(error.cause));
-        const detail = error instanceof Error ? error.message : 'PDF validation failed';
-        return { error: `Attachment error: ${detail}`, transient };
-    }
-}
-
-async function submit(
-    store: Store,
-    recordId: number,
-    message: OutgoingMessage,
-    transport: MessageTransport,
-    logger: Logger,
-) {
-    let result: Awaited<ReturnType<MessageTransport['send']>>;
-    try {
-        result = await transport.send(message);
-    } catch {
-        store.finish(recordId, 'UNKNOWN', 'Transport outcome uncertain. Manual review required.');
-        logger.warn({ recordId }, 'Message submission requires manual review');
-        return;
-    }
-    store.finish(recordId, 'SENT', undefined, undefined, result?.acknowledged);
-    logger.info({ recordId }, 'Message submitted to transport');
 }

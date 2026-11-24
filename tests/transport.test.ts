@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import pino from 'pino';
-import { acquireWhatsAppLease, openWhatsAppAuth, privateDirectory } from '../src/services/whatsapp-auth.js';
-import { WhatsAppService } from '../src/services/whatsapp.service.js';
+import { acquireWhatsAppLease, openWhatsAppAuth, privateDirectory } from '../src/services/whatsapp/auth.js';
+import { WhatsAppService } from '../src/services/whatsapp/service.js';
 
 test('auth persists credentials and keys privately, and logged-out sessions require re-pairing', async context => {
     const path = await mkdtemp(join(tmpdir(), 'bulk-auth-'));

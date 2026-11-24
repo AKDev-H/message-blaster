@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readExcel } from '../src/services/excel.service.js';
-import { HttpError, readDraft } from '../src/web/input.js';
+import { readExcel } from '../src/services/excel/read.js';
+import { HttpError } from '../src/web/http-error.js';
+import { readDraft } from '../src/web/input/index.js';
 
 function form(entries: Record<string, string>) {
     const data = new FormData();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { openDatabase } from '../src/database/connection.js';
-import { Store, type PreparedRow, type WebDraft } from '../src/services/message.service.js';
+import { Store, type PreparedRow, type WebDraft } from '../src/store/index.js';
 
 function row(rowNumber: number, overrides: Partial<PreparedRow> = {}): PreparedRow {
     return {

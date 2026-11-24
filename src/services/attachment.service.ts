@@ -1,20 +1,21 @@
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { lstat, open, realpath, type FileHandle } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
+import { hasErrorCode } from '../utils/fs.util.js';
 
 export type AttachmentErrorCode = 'UNSAFE_PATH' | 'BLOCKED_TYPE' | 'EMPTY_ATTACHMENT' | 'MISSING_ATTACHMENT' | 'INVALID_PDF'
     | 'UNREADABLE_ATTACHMENT';
 
-const blockedExtensions = new Set([
+const BLOCKED_EXTENSIONS = new Set([
     '.ade', '.adp', '.apk', '.appx', '.appxbundle', '.bat', '.cab', '.chm', '.cmd', '.com', '.cpl', '.diagcab', '.diagcfg',
     '.diagpkg', '.dll', '.dmg', '.ex', '.ex_', '.exe', '.hta', '.ins', '.isp', '.iso', '.jar', '.jnlp', '.js', '.jse', '.lib',
     '.lnk', '.mde', '.mjs', '.msc', '.msi', '.msix', '.msixbundle', '.msp', '.mst', '.nsh', '.pif', '.ps1', '.scr', '.sct',
     '.shb', '.sh', '.sys', '.vb', '.vbe', '.vbs', '.vhd', '.vxd', '.wsc', '.wsf', '.wsh', '.xll',
 ]);
 
-const mimeTypes: Record<string, string> = {
+const MIME_TYPES: Record<string, string> = {
     '.pdf': 'application/pdf',
     '.doc': 'application/msword',
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -42,16 +43,18 @@ const mimeTypes: Record<string, string> = {
     '.zip': 'application/zip',
 };
 
+// eslint-disable-next-line no-control-regex -- Control characters and anything that could name a folder.
+const UNSAFE_NAME_CHARACTERS = /[/\\:\u0000-\u001f\u007f]/u;
+const READ_ONLY_NO_LINKS = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
+
 export function attachmentMimeType(name: string): string {
-    return mimeTypes[extname(name).toLowerCase()] ?? 'application/octet-stream';
+    return MIME_TYPES[extname(name).toLowerCase()] ?? 'application/octet-stream';
 }
 
 export function isAllowedAttachmentName(name: string): boolean {
     const extension = extname(name).toLowerCase();
-    return name.length <= 255 && name === name.trim() && extension.length > 1 && extension !== name.toLowerCase() &&
-        !blockedExtensions.has(extension) &&
-        // eslint-disable-next-line no-control-regex -- Reject control characters and directory components.
-        !/[/\\:\u0000-\u001f\u007f]/u.test(name);
+    const hasRealExtension = extension.length > 1 && extension !== name.toLowerCase();
+    return name.length <= 255 && isPlainFileName(name) && hasRealExtension && !BLOCKED_EXTENSIONS.has(extension);
 }
 
 export class AttachmentError extends Error {
@@ -68,59 +71,71 @@ export interface Attachment {
 }
 
 export async function readAttachment(directory: string, name: string): Promise<Attachment> {
-    // eslint-disable-next-line no-control-regex -- Reject control characters and directory components.
-    if (/[/\\:\u0000-\u001f\u007f]/u.test(name) || name !== name.trim() || !extname(name)) {
-        throw new AttachmentError('UNSAFE_PATH', 'Use a file name with an extension and without any folders.');
-    }
-    if (!isAllowedAttachmentName(name)) {
-        throw new AttachmentError('BLOCKED_TYPE', `${extname(name).toLowerCase()} files cannot be sent as attachments.`);
-    }
-
-    let data: Buffer;
-    try {
-        const root = await realpath(directory);
-        const path = join(root, name);
-        const expected = await lstat(path, { bigint: true });
-        if (!expected.isFile()) {
-            throw new AttachmentError('UNSAFE_PATH', 'The attachment must be a regular file without symbolic links.');
-        }
-        const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-        try {
-            const actual = await file.stat({ bigint: true });
-            if (!actual.isFile() || actual.dev !== expected.dev || actual.ino !== expected.ino) {
-                throw new AttachmentError('UNSAFE_PATH', 'The attachment changed while opening it.');
-            }
-            data = await file.readFile();
-        } finally {
-            await file.close();
-        }
-    } catch (error) {
-        if (error instanceof AttachmentError) throw error;
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT' || code === 'ENOTDIR') {
-            throw new AttachmentError('MISSING_ATTACHMENT', 'Attachment was not found.', { cause: error });
-        }
-        if (code === 'ELOOP' || code === 'EMLINK') {
-            throw new AttachmentError('UNSAFE_PATH', 'Symbolic links cannot be used as attachments.', { cause: error });
-        }
-        throw new AttachmentError('UNREADABLE_ATTACHMENT', 'The attachment could not be read.', { cause: error });
-    }
-
+    checkAttachmentName(name);
+    const data = await readRegularFile(directory, name);
     if (!data.length) throw new AttachmentError('EMPTY_ATTACHMENT', 'The attachment is empty.');
     if (extname(name).toLowerCase() === '.pdf') await validatePdf(data);
     return { name, data, sha256: createHash('sha256').update(data).digest('hex') };
 }
 
-async function validatePdf(data: Buffer): Promise<void> {
-    const header = data.subarray(0, 10).toString('latin1');
-    const eof = data.lastIndexOf('%%EOF');
-    if (!/^%PDF-(1\.[0-7]|2\.0)[\r\n]/u.test(header) || eof < 0 || data.subarray(eof + 5).toString('latin1').trim()) {
-        throw new AttachmentError('INVALID_PDF', 'The PDF is missing required file markers.');
+function isPlainFileName(name: string): boolean {
+    return name === name.trim() && !UNSAFE_NAME_CHARACTERS.test(name);
+}
+
+function checkAttachmentName(name: string): void {
+    if (!isPlainFileName(name) || !extname(name)) {
+        throw new AttachmentError('UNSAFE_PATH', 'Use a file name with an extension and without any folders.');
     }
+    if (!isAllowedAttachmentName(name)) {
+        throw new AttachmentError('BLOCKED_TYPE', `${extname(name).toLowerCase()} files cannot be sent as attachments.`);
+    }
+}
+
+async function readRegularFile(directory: string, name: string): Promise<Buffer> {
+    try {
+        const path = join(await realpath(directory), name);
+        const expected = await lstat(path, { bigint: true });
+        if (!expected.isFile()) throw new AttachmentError('UNSAFE_PATH', 'The attachment must be a regular file without symbolic links.');
+        return await readUnchangedFile(path, expected);
+    } catch (error) {
+        throw asAttachmentError(error);
+    }
+}
+
+async function readUnchangedFile(path: string, expected: { dev: bigint; ino: bigint }): Promise<Buffer> {
+    const file: FileHandle = await open(path, READ_ONLY_NO_LINKS);
+    try {
+        const actual = await file.stat({ bigint: true });
+        if (!actual.isFile() || actual.dev !== expected.dev || actual.ino !== expected.ino) {
+            throw new AttachmentError('UNSAFE_PATH', 'The attachment changed while opening it.');
+        }
+        return await file.readFile();
+    } finally {
+        await file.close();
+    }
+}
+
+function asAttachmentError(error: unknown): AttachmentError {
+    if (error instanceof AttachmentError) return error;
+    if (hasErrorCode(error, 'ENOENT', 'ENOTDIR')) return new AttachmentError('MISSING_ATTACHMENT', 'Attachment was not found.', { cause: error });
+    if (hasErrorCode(error, 'ELOOP', 'EMLINK')) {
+        return new AttachmentError('UNSAFE_PATH', 'Symbolic links cannot be used as attachments.', { cause: error });
+    }
+    return new AttachmentError('UNREADABLE_ATTACHMENT', 'The attachment could not be read.', { cause: error });
+}
+
+async function validatePdf(data: Buffer): Promise<void> {
+    if (!hasPdfMarkers(data)) throw new AttachmentError('INVALID_PDF', 'The PDF is missing required file markers.');
     try {
         const pdf = await PDFDocument.load(data, { throwOnInvalidObject: true, updateMetadata: false });
         if (pdf.getPageCount() === 0) throw new Error('The PDF has no pages.');
     } catch (error) {
         throw new AttachmentError('INVALID_PDF', 'The PDF is corrupted, encrypted, or has no pages.', { cause: error });
     }
+}
+
+function hasPdfMarkers(data: Buffer): boolean {
+    const header = data.subarray(0, 10).toString('latin1');
+    const eof = data.lastIndexOf('%%EOF');
+    return /^%PDF-(1\.[0-7]|2\.0)[\r\n]/u.test(header) && eof >= 0 && !data.subarray(eof + 5).toString('latin1').trim();
 }
