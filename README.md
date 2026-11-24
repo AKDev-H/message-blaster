@@ -37,16 +37,21 @@ To open the dashboard, configure Google sign-in as described below and run `npm 
 The dashboard requires an approved Google account. The app uses Sign in with Google for operator identity, and campaigns send through the Gmail or WhatsApp account configured in Settings.
 
 1. Configure your project's audience in Google Auth Platform and create an OAuth client of type **Web application**. If your project requires test users, add their accounts there too. [Google OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect)
-2. Set the client's **Authorized redirect URI** to `http://127.0.0.1:3000/auth/callback` for local use or `https://blaster.example.com/auth/callback` for an HTTPS deployment. Use the exact origin and port that operators will open in their browsers.
+2. Set the client's **Authorized redirect URI** to `<WEB_PUBLIC_ORIGIN>/auth/callback`, such as `http://localhost:3000/auth/callback` for local use or `https://blaster.example.com/auth/callback` for an HTTPS deployment. Use the exact origin and port that operators will open in their browsers.
 3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` or your process environment. For HTTPS, set `WEB_PUBLIC_ORIGIN=https://blaster.example.com` without a path. The default local origin is `http://127.0.0.1:<WEB_PORT>`.
-4. Approve your Google-hosted email as the first administrator. Start the dashboard and open the configured origin.
+4. List the Google accounts that may sign in, then start the dashboard and open the configured origin.
 
 ```bash
-node --import tsx src/index.ts auth:bootstrap admin@example.com
+APPROVED_ACCOUNTS="['admin@example.com', 'operator@example.com']"
+```
+
+```bash
 npm run web
 ```
 
-Approve each existing operator's Gmail or Google Workspace email before switching users over. On first sign-in the app checks the verified, Google-hosted address and binds the account to its Google subject ID. Thereafter the subject ID identifies the user. Use the dashboard to sign out and the trusted server CLI to manage access.
+Each time the dashboard starts, it applies `APPROVED_ACCOUNTS`: listed accounts can sign in (new ones become administrators; existing ones keep their role), and every other account is disabled and signed out. Restart the dashboard after editing the list. The value can also be written as JSON (`["a@example.com"]`) or comma-separated. Leave it empty to manage accounts with the CLI below instead.
+
+Without `APPROVED_ACCOUNTS`, approve the first administrator with `node --import tsx src/index.ts auth:bootstrap admin@example.com`, then each operator's Gmail or Google Workspace email. On first sign-in the app checks the verified, Google-hosted address and binds the account to its Google subject ID. Thereafter the subject ID identifies the user. Use the dashboard to sign out and the trusted server CLI to manage access.
 
 ```bash
 node --import tsx src/index.ts auth:invite operator@example.com

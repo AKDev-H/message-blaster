@@ -31,7 +31,7 @@ test('web drafts retain editable inputs, replace atomically and paginate the new
 
     store.replaceWebDraft('draft', [row(3), row(2), row(4)], updated);
     const summary = store.campaignSummary('draft');
-    assert.deepEqual(store.listCampaignSummaries(), [summary]);
+    assert.deepEqual(store.listGroupPage({ page: 1, pageSize: 10 }).groups.map(group => group.members), [[summary]]);
     assert.equal(summary.state, 'Ready');
     assert.equal(summary.total, 3);
     assert.equal(summary.queued, 3);
@@ -81,7 +81,7 @@ test('retry and delete preserve consent, protect active attempts, and update sum
     assert.equal(store.attempts(failed.id)[0]?.state, 'FAILED');
 
     store.deleteCampaign('campaign');
-    assert.deepEqual(store.listCampaignSummaries(), []);
+    assert.deepEqual(store.listGroupPage({ page: 1, pageSize: 10 }).groups, [], 'the campaign page goes with its last channel');
     assert.deepEqual(store.attempts(failed.id), []);
     assert.equal(store.isWithdrawn(optedOut.phone), true);
 });

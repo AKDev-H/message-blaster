@@ -2,7 +2,6 @@ import { icon } from './icons.mjs';
 
 export const get = id => document.getElementById(id);
 export const number = new Intl.NumberFormat();
-export const campaignPath = id => `/api/campaigns/${encodeURIComponent(id)}`;
 export const groupPath = slug => `/api/campaign-groups/${encodeURIComponent(slug)}`;
 export const campaignPage = slug => `/campaigns/${encodeURIComponent(slug)}`;
 

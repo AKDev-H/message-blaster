@@ -9,11 +9,11 @@ import { setImmediate } from 'node:timers/promises';
 import { DEFAULT_SETTINGS, loadEnv, type Environment } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import type { RunMode } from '../src/services/live-campaign.service.js';
-import { Store, type Campaign, type PreparedRow } from '../src/store/index.js';
+import { Store, type Campaign, type CampaignGroup, type PreparedRow } from '../src/store/index.js';
 import type { RequestAudit } from '../src/web/auth/audit.js';
-import { WebRunner, type SequenceStep } from '../src/web/runner.js';
+import { INTERRUPTED_NOTICE, WebRunner, type LaunchStep } from '../src/web/runner.js';
 
-type Outcome = 'complete' | 'pause' | 'crash';
+type Outcome = 'complete' | 'pause' | 'crash' | 'hang';
 
 function row(rowNumber: number, channel: 'gmail' | 'whatsapp'): PreparedRow {
     return {
@@ -35,6 +35,11 @@ function setup(context: TestContext, outcomes: Outcome[]) {
         started.push(campaign.id);
         const child = Object.assign(new EventEmitter(), { stderr: null, kill: () => true }) as unknown as ChildProcess;
         const outcome = outcomes.shift() ?? 'complete';
+        if (outcome === 'hang') {
+            store[mode](campaign.id);
+            Object.assign(child, { kill: () => queueMicrotask(() => { store.pause(campaign.id); child.emit('close', 0); }) });
+            return child;
+        }
         queueMicrotask(() => {
             store[mode](campaign.id);
             if (outcome === 'complete') {
@@ -55,11 +60,15 @@ function setup(context: TestContext, outcomes: Outcome[]) {
     const runner = new WebRunner(store, settings, () => {}, worker);
     const audit = { record: () => {}, mutation: (_: string, operation: () => unknown) => operation() } as unknown as RequestAudit;
     const group = store.campaignGroup('launch');
-    const steps: SequenceStep[] = [
+    const steps: LaunchStep[] = [
         { id: 'launch-gmail', channel: 'gmail', mode: 'start' },
         { id: 'launch-whatsapp', channel: 'whatsapp', mode: 'start' },
     ];
     return { store, runner, audit, group, steps, started };
+}
+
+function sendBoth(group: CampaignGroup, steps: LaunchStep[], approve: string, audit: RequestAudit) {
+    return { group, steps, approve, audit, approval: group.slug, action: 'campaign.send' };
 }
 
 async function settled() {
@@ -68,28 +77,28 @@ async function settled() {
 
 test('Send both runs the second channel only after the first completes', async context => {
     const { store, runner, audit, group, steps, started } = setup(context, ['complete', 'complete']);
-    assert.throws(() => runner.launchSequence(group, steps, 'wrong', audit), /approval/iu);
+    assert.throws(() => runner.launch(sendBoth(group, steps, 'wrong', audit)), /approval/iu);
     assert.deepEqual(started, [], 'nothing starts without approval');
 
-    runner.launchSequence(group, steps, 'launch', audit);
+    runner.launch(sendBoth(group, steps, 'launch', audit));
     assert.deepEqual(store.campaignGroup('launch').pendingChannels, ['whatsapp']);
-    assert.ok(runner.continuing(group.id));
-    assert.throws(() => runner.launchSequence(group, steps, 'launch', audit), /sending/u, 'a double click cannot start it twice');
+    assert.ok(runner.continuing(group));
+    assert.throws(() => runner.launch(sendBoth(group, steps, 'launch', audit)), /sending/u, 'a double click cannot start it twice');
     await settled();
     assert.deepEqual(started, ['launch-gmail', 'launch-whatsapp']);
     assert.deepEqual(store.campaignGroup('launch').pendingChannels, []);
     assert.equal(store.getCampaign('launch-whatsapp').state, 'Completed');
-    assert.equal(runner.continuing(group.id), false);
+    assert.equal(runner.continuing(group), false);
 });
 
 test('a paused or failed first channel leaves the second waiting for an explicit resume', async context => {
     for (const outcome of ['pause', 'crash'] as const) {
         const { store, runner, audit, group, steps, started } = setup(context, [outcome]);
-        runner.launchSequence(group, steps, 'launch', audit);
+        runner.launch(sendBoth(group, steps, 'launch', audit));
         await settled();
         assert.deepEqual(started, ['launch-gmail'], `${outcome}: the second channel does not start`);
         assert.deepEqual(store.campaignGroup('launch').pendingChannels, ['whatsapp'], `${outcome}: it is still pending`);
-        assert.equal(runner.continuing(group.id), false, `${outcome}: nothing will start it automatically`);
+        assert.equal(runner.continuing(group), false, `${outcome}: nothing will start it automatically`);
         assert.equal(store.getCampaign('launch-whatsapp').state, 'Ready');
     }
 });
@@ -97,8 +106,27 @@ test('a paused or failed first channel leaves the second waiting for an explicit
 test('preflight refuses the whole send when any selected channel cannot start', context => {
     const { store, runner, audit, group, steps, started } = setup(context, []);
     store.cancel('launch-whatsapp');
-    assert.throws(() => runner.launchSequence(group, steps, 'launch', audit), /Cannot start/u);
+    assert.throws(() => runner.launch(sendBoth(group, steps, 'launch', audit)), /Cannot start/u);
     assert.deepEqual(started, []);
     assert.deepEqual(store.campaignGroup('launch').pendingChannels, []);
     assert.equal(store.getCampaign('launch-gmail').state, 'Ready');
+});
+
+test('a server shutdown mid-send flags the paused campaign; a user pause does not', async context => {
+    const shutdown = setup(context, ['hang']);
+    shutdown.runner.launch(sendBoth(shutdown.group, shutdown.steps, 'launch', shutdown.audit));
+    await shutdown.runner.close();
+    const stopped = shutdown.store.getCampaign('launch-gmail');
+    assert.equal(stopped.state, 'Paused');
+    assert.ok(stopped.interruptedAt);
+    assert.equal(shutdown.runner.decorate(stopped).runError, INTERRUPTED_NOTICE);
+
+    const paused = setup(context, ['hang']);
+    paused.runner.launch(sendBoth(paused.group, paused.steps, 'launch', paused.audit));
+    paused.runner.pause('launch-gmail', paused.audit);
+    await paused.runner.close();
+    const byUser = paused.store.getCampaign('launch-gmail');
+    assert.equal(byUser.state, 'Paused');
+    assert.equal(byUser.interruptedAt, null);
+    assert.equal(paused.runner.decorate(byUser).runError, undefined);
 });

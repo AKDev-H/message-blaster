@@ -37,6 +37,12 @@ export interface AuditEvent {
     requestId: string | null;
 }
 
+export interface ApprovalSync {
+    added: string[];
+    enabled: string[];
+    disabled: string[];
+}
+
 interface UserRow extends Omit<AuthUser, 'enabled'> {
     enabled: 0 | 1;
 }
@@ -77,6 +83,22 @@ export class AuthStore {
 
     allowUser(email: string, role: AuthRole, actorId?: number): AuthUser {
         return transaction(this.db, () => this.insertUser(email, role, 'user.invite', actorId));
+    }
+
+    syncApprovedAccounts(emails: readonly string[]): ApprovalSync {
+        return transaction(this.db, () => {
+            const approved = new Set(emails.map(normalizeEmail));
+            const result: ApprovalSync = { added: [], enabled: [], disabled: [] };
+            for (const email of approved) this.approve(email, result);
+            for (const user of this.listUsers()) {
+                if (approved.has(user.email) || !user.enabled) continue;
+                this.db.prepare('UPDATE users SET enabled = 0 WHERE id = ?').run(user.id);
+                this.deleteSessionRows(user.id);
+                this.auditUserAction('user.disable', user.id);
+                result.disabled.push(user.email);
+            }
+            return result;
+        });
     }
 
     userByEmail(email: string): AuthUser | undefined {
@@ -199,6 +221,18 @@ export class AuthStore {
         if (!row) throw new ConflictError('This email is already registered.');
         this.auditUserAction(action, row.id, actorId);
         return authUser(row);
+    }
+
+    private approve(email: string, result: ApprovalSync): void {
+        const user = this.userByEmail(email);
+        if (!user) {
+            this.insertUser(email, 'admin', 'user.invite');
+            result.added.push(email);
+        } else if (!user.enabled) {
+            this.db.prepare('UPDATE users SET enabled = 1 WHERE id = ?').run(user.id);
+            this.auditUserAction('user.enable', user.id);
+            result.enabled.push(email);
+        }
     }
 
     private getUser(userId: number): AuthUser {

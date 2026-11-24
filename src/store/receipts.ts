@@ -44,6 +44,8 @@ const SETTLE_INTERRUPTED_CAMPAIGNS = `
     WHERE state = 'Running' OR (state = 'Paused' AND NOT ${has(PENDING_STATUSES)})
 `;
 
+const FLAG_INTERRUPTED_CAMPAIGNS = `UPDATE campaigns SET interrupted_at = ? WHERE state = 'Running' AND ${has(PENDING_STATUSES)}`;
+
 export function recordReceipt(db: DatabaseSync, whatsappId: string, stage: ReceiptStage): void {
     if (stage === 'REJECTED') db.prepare(MARK_REJECTED).run(whatsappId);
     else db.prepare(RECORD_STAGE).run({ stage, now: nowIso(), id: whatsappId });
@@ -53,6 +55,7 @@ export function recoverInterrupted(db: DatabaseSync): number {
     return transaction(db, () => {
         const timestamp = nowIso();
         const interrupted = db.prepare(MARK_INTERRUPTED_MESSAGES).run(CRASH_ERROR);
+        db.prepare(FLAG_INTERRUPTED_CAMPAIGNS).run(timestamp);
         db.prepare(CLOSE_INTERRUPTED_ATTEMPTS).run(timestamp, CRASH_ERROR);
         db.prepare(SETTLE_INTERRUPTED_CAMPAIGNS).run(timestamp);
         return Number(interrupted.changes);

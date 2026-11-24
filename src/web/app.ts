@@ -19,7 +19,9 @@ export interface OpenedApp {
 export async function openApp(env: BaseEnvironment): Promise<OpenedApp> {
     const db = await openMainDatabase(env);
     const observer = openOrClose(env.DATABASE_URL, db);
-    return { app: createApp(env, db, observer), databases: [observer, db] };
+    const app = createApp(env, db, observer);
+    applyApprovedAccounts(app);
+    return { app, databases: [observer, db] };
 }
 
 export function closeDatabases(databases: readonly DatabaseSync[]): void {
@@ -61,6 +63,13 @@ function createApp(env: BaseEnvironment, db: DatabaseSync, observer: DatabaseSyn
         snapshot: () => campaignSnapshot(app),
     };
     return app;
+}
+
+function applyApprovedAccounts({ env, authStore }: App): void {
+    if (!env.APPROVED_ACCOUNTS.length) return;
+    const { added, enabled, disabled } = authStore.syncApprovedAccounts(env.APPROVED_ACCOUNTS);
+    const changes = [['Approved', added], ['Re-enabled', enabled], ['Disabled', disabled]] as const;
+    for (const [label, emails] of changes) if (emails.length) console.log(`${label} dashboard accounts: ${emails.join(', ')}`);
 }
 
 function campaignSnapshot({ env, store, runner, updates }: App) {

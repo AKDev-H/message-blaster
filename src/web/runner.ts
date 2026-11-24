@@ -12,6 +12,27 @@ import { HttpError } from './http-error.js';
 
 type Stopping = 'Pausing' | 'Cancelling';
 
+export interface RunState {
+    runActive: boolean;
+    runStatus: Stopping | 'Connecting' | undefined;
+    runError: string | undefined;
+}
+
+export interface LaunchStep {
+    id: string;
+    channel: CampaignChannel;
+    mode: RunMode;
+}
+
+export interface LaunchRequest {
+    steps: readonly LaunchStep[];
+    approval: string;
+    approve: unknown;
+    audit: RequestAudit;
+    action: string;
+    group?: CampaignGroup;
+}
+
 interface ActiveRun {
     campaign: Campaign;
     child: ChildProcess;
@@ -19,21 +40,16 @@ interface ActiveRun {
     stopping?: Stopping;
 }
 
-export interface SequenceStep {
-    id: string;
-    channel: CampaignChannel;
-    mode: RunMode;
-}
-
 interface Sequence {
     group: CampaignGroup;
     current: string;
-    remaining: SequenceStep[];
+    remaining: LaunchStep[];
     audit: RequestAudit;
 }
 
 export type SpawnWorker = (campaign: Campaign, mode: RunMode, env: NodeJS.ProcessEnv) => ChildProcess;
 
+export const INTERRUPTED_NOTICE = 'Sending stopped because the server restarted. Review any recipients marked "Needs review", then resume.';
 const CLI_ENTRY = fileURLToPath(new URL('../index.ts', import.meta.url));
 
 export class WebRunner {
@@ -49,19 +65,24 @@ export class WebRunner {
         private readonly spawnWorker: SpawnWorker = spawnCliWorker,
     ) {}
 
-    decorate<T extends { id: string; state: string; updatedAt: string }>(campaign: T) {
-        const active = this.isActive(campaign.id) ? this.#active : undefined;
-        const connecting = active?.campaign.updatedAt === campaign.updatedAt && campaign.state !== 'Running';
-        const runStatus = active?.stopping ?? (connecting ? 'Connecting' : undefined);
-        return { ...campaign, runActive: Boolean(active), runStatus, runError: this.failureOf(campaign.id) };
-    }
-
     get activeId(): string | undefined {
         return this.#active?.campaign.id;
     }
 
+    decorate<T extends { id: string; state: string; updatedAt: string; interruptedAt?: string | null }>(campaign: T): T & RunState {
+        const active = this.isActive(campaign.id) ? this.#active : undefined;
+        const connecting = active?.campaign.updatedAt === campaign.updatedAt && campaign.state !== 'Running';
+        const runStatus = active?.stopping ?? (connecting ? 'Connecting' : undefined);
+        const interrupted = !active && campaign.state === 'Paused' && campaign.interruptedAt ? INTERRUPTED_NOTICE : undefined;
+        return { ...campaign, runActive: Boolean(active), runStatus, runError: this.failureOf(campaign.id) ?? interrupted };
+    }
+
     isActive(id: string): boolean {
         return this.#active?.campaign.id === id;
+    }
+
+    continuing(group: CampaignGroup): boolean {
+        return this.#sequence?.group.id === group.id;
     }
 
     status(id: string): { active: boolean; error?: string } {
@@ -74,55 +95,57 @@ export class WebRunner {
         if (this.#active) throw new HttpError(409, `Campaign ${this.#active.campaign.id} is sending. Wait for it to finish or pause it first.`);
     }
 
-    launch(id: string, mode: RunMode, approve: unknown, audit: RequestAudit, action: string, target = id, approval = id): void {
+    launch({ steps, approval, approve, audit, action, group }: LaunchRequest): void {
         this.ensureIdle();
         this.checkApproval(approval, approve);
-        const campaign = this.launchableCampaign(id, mode);
-        audit.record(action, 'accepted', target);
-        this.start(campaign, mode, audit, target);
-    }
-
-    launchSequence(group: CampaignGroup, steps: readonly SequenceStep[], approve: unknown, audit: RequestAudit): void {
-        this.ensureIdle();
-        this.checkApproval(group.slug, approve);
-        const campaigns = steps.map(step => this.launchableCampaign(step.id, step.mode));
+        const campaigns = steps.map(step => this.launchableCampaign(step));
         const [first, ...remaining] = steps;
         if (!first) throw new HttpError(409, 'Choose at least one channel to send.');
-        audit.record('campaign.send', 'accepted', `${group.slug}/${steps.map(step => step.channel).join('+')}`);
-        this.store.setPendingChannels(group, remaining.map(step => step.channel));
-        this.#sequence = remaining.length ? { group, current: first.id, remaining, audit } : undefined;
-        this.start(campaigns[0]!, first.mode, audit, `${group.slug}/${first.channel}`);
-    }
-
-    continuing(groupId: number): boolean {
-        return this.#sequence?.group.id === groupId;
+        audit.record(action, 'accepted', targetOf(group, steps));
+        if (group) this.planRemaining(group, steps, remaining);
+        this.#sequence = group && remaining.length ? { group, current: first.id, remaining, audit } : undefined;
+        this.start(campaigns[0]!, first, audit, targetOf(group, [first]));
     }
 
     pause(id: string, audit: RequestAudit, target = id): void {
         const { state } = this.store.getCampaign(id);
-        if (state === 'Running' || state === 'Paused' || !this.isActive(id)) {
-            audit.mutation('campaign.pause', () => this.store.pause(id), target);
-        } else {
-            audit.record('campaign.pause', 'accepted', target);
-        }
+        if (state === 'Running' || state === 'Paused' || !this.isActive(id)) audit.mutation('campaign.pause', () => this.store.pause(id), target);
+        else audit.record('campaign.pause', 'accepted', target);
         this.stopWorker(id, 'Pausing');
     }
 
     cancel(id: string, audit: RequestAudit, target = id): void {
         audit.mutation('campaign.cancel', () => this.store.cancel(id), target);
         this.stopWorker(id, 'Cancelling');
+        if (this.#sequence) this.#sequence.remaining = this.#sequence.remaining.filter(step => step.id !== id);
     }
 
-    forgetSequence(groupId: number): void {
-        if (this.#sequence?.group.id === groupId) this.#sequence = undefined;
+    forget(group: CampaignGroup): void {
+        if (this.continuing(group)) this.#sequence = undefined;
     }
 
     async close(): Promise<void> {
         this.#closed = true;
         const active = this.#active;
         if (!active) return;
+        const stoppedByUser = Boolean(active.stopping);
         this.stopWorker(active.campaign.id, 'Pausing');
         await active.finished;
+        if (!stoppedByUser) this.flagInterrupted(active.campaign.id);
+    }
+
+    private flagInterrupted(id: string): void {
+        try {
+            this.store.markInterrupted(id);
+        } catch (error) {
+            console.error('Could not record that the server stopped the campaign', error);
+        }
+    }
+
+    private planRemaining(group: CampaignGroup, steps: readonly LaunchStep[], remaining: readonly LaunchStep[]): void {
+        const launched = new Set(steps.map(step => step.channel));
+        const untouched = group.pendingChannels.filter(channel => !launched.has(channel));
+        this.store.setPendingChannels(group, [...untouched, ...remaining.map(step => step.channel)]);
     }
 
     private failureOf(id: string): string | undefined {
@@ -137,7 +160,7 @@ export class WebRunner {
         }
     }
 
-    private launchableCampaign(id: string, mode: RunMode): Campaign {
+    private launchableCampaign({ id, mode }: LaunchStep): Campaign {
         const campaign = this.store.getCampaign(id);
         if (campaign.isTest && mode !== 'start') throw new HttpError(409, 'Send a new test from Settings instead.');
         const allowed = mode === 'start' ? campaign.state === 'Ready' : ['Paused', 'Failed'].includes(campaign.state);
@@ -146,8 +169,18 @@ export class WebRunner {
         return campaign;
     }
 
-    private start(campaign: Campaign, mode: RunMode, audit: RequestAudit, target: string): void {
-        this.track(campaign, this.spawnWorker(campaign, mode, this.workerEnvironment()), audit, target);
+    private start(campaign: Campaign, step: LaunchStep, audit: RequestAudit, target: string): void {
+        const child = this.spawnWorker(campaign, step.mode, this.workerEnvironment());
+        const output = captureErrors(child);
+        const finished = new Promise<void>(resolve => {
+            child.once('close', code => {
+                recordExit(audit, code, target);
+                void this.finish(campaign.id, code, output.message()).finally(resolve);
+            });
+        });
+        if (this.#lastFailure?.id === campaign.id) this.#lastFailure = undefined;
+        this.#active = { child, campaign, finished };
+        this.onChange();
     }
 
     private workerEnvironment(): NodeJS.ProcessEnv {
@@ -158,23 +191,6 @@ export class WebRunner {
         delete env.GOOGLE_CLIENT_SECRET;
         env.MESSAGE_BLASTER_WORKER = '1';
         return env;
-    }
-
-    private track(campaign: Campaign, child: ChildProcess, audit: RequestAudit, target: string): void {
-        const output = captureErrors(child);
-        const finished = new Promise<void>(resolve => {
-            child.once('close', code => {
-                try {
-                    audit.record('campaign.worker_exit', code === 0 ? 'success' : 'failed', target, 'worker');
-                } catch {
-                    console.error('Could not record the campaign worker exit');
-                }
-                void this.finish(campaign.id, code, output.message()).finally(resolve);
-            });
-        });
-        if (this.#lastFailure?.id === campaign.id) this.#lastFailure = undefined;
-        this.#active = { child, campaign, finished };
-        this.onChange();
     }
 
     private async finish(id: string, code: number | null, message: string): Promise<void> {
@@ -189,17 +205,17 @@ export class WebRunner {
 
     private continueSequence(finishedId: string, code: number | null): void {
         const sequence = this.#sequence;
-        if (!sequence || sequence.current !== finishedId) return;
+        if (sequence?.current !== finishedId) return;
         this.#sequence = undefined;
         if (code !== 0 || this.#closed || this.store.getCampaign(finishedId).state !== 'Completed') return;
         const [next, ...remaining] = sequence.remaining;
         if (!next) return;
         try {
             if (this.settings().DRY_RUN) throw new HttpError(409, 'Live sending was turned off before the next channel started.');
-            const campaign = this.launchableCampaign(next.id, next.mode);
-            this.store.setPendingChannels(sequence.group, remaining.map(step => step.channel));
+            const campaign = this.launchableCampaign(next);
+            this.planRemaining(sequence.group, [next], remaining);
             if (remaining.length) this.#sequence = { ...sequence, current: next.id, remaining };
-            this.start(campaign, next.mode, sequence.audit, `${sequence.group.slug}/${next.channel}`);
+            this.start(campaign, next, sequence.audit, targetOf(sequence.group, [next]));
         } catch (error) {
             this.#lastFailure = { id: next.id, message: errorMessage(error, 'The next channel could not start.') };
         }
@@ -219,6 +235,19 @@ export class WebRunner {
         active.stopping = stopping;
         active.child.kill('SIGINT');
         this.onChange();
+    }
+}
+
+export function targetOf(group: CampaignGroup | undefined, steps: readonly Pick<LaunchStep, 'id' | 'channel'>[]): string {
+    if (!group) return steps.map(step => step.id).join('+');
+    return `${group.slug}/${steps.map(step => step.channel).join('+')}`;
+}
+
+function recordExit(audit: RequestAudit, code: number | null, target: string): void {
+    try {
+        audit.record('campaign.worker_exit', code === 0 ? 'success' : 'failed', target, 'worker');
+    } catch {
+        console.error('Could not record the campaign worker exit');
     }
 }
 

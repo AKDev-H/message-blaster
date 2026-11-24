@@ -52,15 +52,13 @@ async function measure(size: number) {
 
     return {
         recipients: size,
-        'list before (per campaign)': await median(() => store.listCampaignPage({ page: 1, pageSize: 10 })),
-        'list after (grouped)': await median(() => store.listGroupPage({ page: 1, pageSize: 10 })),
-        'detail before (one channel)': await median(() => [store.campaignSummary('bench-gmail'), store.listMessagePage('bench-gmail', 1, 25)]),
-        'detail after (group + channel page)': await median(() => {
+        list: await median(() => store.listGroupPage({ page: 1, pageSize: 10 })),
+        'detail (group + channel page)': await median(() => {
             const members = store.groupMembers(group);
             return [store.groupMetrics(group, members), members.map(member => store.memberMetrics(member.id)), store.listMessagePage('bench-gmail', 1, 25)];
         }),
-        'parse before (once per channel)': await median(() => Promise.all(CHANNELS.map(channel => readExcel(source, channel)))),
-        'parse after (once for both)': await median(() => readExcelChannels(source, CHANNELS)),
+        'parse once per channel': await median(() => Promise.all(CHANNELS.map(channel => readExcel(source, channel)))),
+        'parse once for both': await median(() => readExcelChannels(source, CHANNELS)),
         'live snapshot': await median(() => store.listActiveCampaignIds()),
     };
 }

@@ -27,15 +27,10 @@ export class GmailService implements MessageTransport {
     }
 
     async connect(): Promise<void> {
-        try {
-            this.#verified = await this.#mailer.verify();
-        } catch (error) {
-            // eslint-disable-next-line preserve-caught-error -- Keep raw SMTP responses out of the surfaced error.
-            throw new Error(hasErrorCode(error, 'EAUTH')
-                ? 'Gmail rejected the sign-in. Check the address and App Password in Settings › Gmail.'
-                : 'Could not verify Gmail SMTP on smtp.gmail.com port 465.');
-        }
-        if (!this.#verified) throw new Error('Could not verify Gmail SMTP.');
+        const verified = await this.#mailer.verify().catch((error: unknown) => connectionFailure(error));
+        if (verified instanceof Error) throw verified;
+        this.#verified = verified;
+        if (!verified) throw new Error('Could not verify Gmail SMTP.');
     }
 
     createMessageId(): string {
@@ -84,4 +79,10 @@ function createMailer(user: string, pass: string) {
 
 function attachmentOf({ name, data }: { name: string; data: Buffer }) {
     return { filename: name, content: data, contentType: attachmentMimeType(name) };
+}
+
+function connectionFailure(error: unknown): Error {
+    return new Error(hasErrorCode(error, 'EAUTH')
+        ? 'Gmail rejected the sign-in. Check the address and App Password in Settings › Gmail.'
+        : 'Could not verify Gmail SMTP on smtp.gmail.com port 465.');
 }

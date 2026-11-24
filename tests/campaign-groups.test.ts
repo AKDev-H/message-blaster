@@ -123,7 +123,7 @@ test('upgrading keeps every campaign ID and its history, and only groups pairs s
 
     using db = openDatabase(copy);
     const store = new Store(db);
-    assert.equal(Number(db.prepare('PRAGMA user_version').get()?.user_version), 8);
+    assert.equal(Number(db.prepare('PRAGMA user_version').get()?.user_version), 9);
     const listed = store.listGroupPage({ page: 1, pageSize: 10 }).groups.map(group => group.slug).sort();
     assert.deepEqual(listed, ['launch-gmail', 'launch-whatsapp', 'news', 'promo-gmail', 'promo-whatsapp'], 'each campaign is listed on its own until grouped');
     assert.equal(db.prepare('SELECT group_id FROM campaigns WHERE id = ?').get('gmail-test-1')?.group_id, null);

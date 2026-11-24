@@ -4,6 +4,7 @@ import { lstat, open, realpath, type FileHandle } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import { hasErrorCode } from '../utils/fs.util.js';
+import { hasControlCharacters } from '../utils/text.util.js';
 
 export type AttachmentErrorCode = 'UNSAFE_PATH' | 'BLOCKED_TYPE' | 'EMPTY_ATTACHMENT' | 'MISSING_ATTACHMENT' | 'INVALID_PDF'
     | 'UNREADABLE_ATTACHMENT';
@@ -43,8 +44,7 @@ const MIME_TYPES: Record<string, string> = {
     '.zip': 'application/zip',
 };
 
-// eslint-disable-next-line no-control-regex -- Control characters and anything that could name a folder.
-const UNSAFE_NAME_CHARACTERS = /[/\\:\u0000-\u001f\u007f]/u;
+const PATH_CHARACTERS = /[/\\:]/u;
 const READ_ONLY_NO_LINKS = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
 
 export function attachmentMimeType(name: string): string {
@@ -79,7 +79,7 @@ export async function readAttachment(directory: string, name: string): Promise<A
 }
 
 function isPlainFileName(name: string): boolean {
-    return name === name.trim() && !UNSAFE_NAME_CHARACTERS.test(name);
+    return name === name.trim() && !PATH_CHARACTERS.test(name) && !hasControlCharacters(name);
 }
 
 function checkAttachmentName(name: string): void {

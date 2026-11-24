@@ -3,7 +3,7 @@ import type { AuthUser } from '../auth/store.js';
 import { loadAssets, loadStatusPages, type Asset, type Assets, type StatusPage, type StatusPages } from './assets.js';
 import { HttpError } from './http-error.js';
 import { sendAsset, sendError, sendPage } from './http.js';
-import { groupExists } from './routes/campaign-groups.js';
+import { groupExists } from './routes/campaigns/index.js';
 import { requireRole } from './routes/index.js';
 import type { App } from './routes/route.js';
 

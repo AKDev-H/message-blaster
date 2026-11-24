@@ -1396,8 +1396,8 @@ a.campaign-link:focus-visible { border-radius: 3px; }
 .detail-count[data-detail-metric="peopleSent"] strong { color: var(--harbor-deep); }
 .detail-channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; padding: 0 14px 14px; }
 .channel-card { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sunken); }
-.channel-card-head, .channel-toolbar-title { display: flex; align-items: center; gap: 8px; }
-.channel-card-head .channel-icon, .channel-toolbar-title .channel-icon { width: 24px; height: 24px; border-radius: 6px; }
+.channel-card-head, .channel-toolbar-heading { display: flex; align-items: center; gap: 8px; }
+.channel-card-head .channel-icon, .channel-toolbar-heading .channel-icon { width: 24px; height: 24px; border-radius: 6px; }
 .channel-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 10px; }
 .content-tabs { display: grid; gap: 6px; }
 .content-tabs .settings-tabs { padding: 0; }

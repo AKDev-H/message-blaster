@@ -3,6 +3,7 @@ import { transaction } from '../database/transaction.js';
 import { ConflictError } from '../errors.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignState } from '../types/index.js';
 import { getCampaign, removeCampaign, saveAccount, setState } from './campaigns.js';
+import { deleteEmptyGroup, groupOfCampaign } from './groups.js';
 import type { Campaign } from './records.js';
 import { CANCELLED_ERROR, FAULT_STATUSES, PENDING_STATUSES, SENT_STATUSES, UNFINISHED_STATUSES } from './statuses.js';
 
@@ -83,7 +84,9 @@ export function deleteCampaign(db: DatabaseSync, id: string): void {
         if (campaign.state === 'Running' || hasActiveAttempts(db, id)) {
             throw new ConflictError('Cannot delete until the campaign stops and any in-flight attempts settle');
         }
+        const group = groupOfCampaign(db, id);
         removeCampaign(db, id);
+        if (group) deleteEmptyGroup(db, group.id);
     });
 }
 

@@ -1,4 +1,5 @@
 import { CAMPAIGN_ID } from '../../config/constants.js';
+import { CHANNEL_ORDER } from '../../store/index.js';
 import type { CampaignChannel } from '../../types/index.js';
 import { HttpError, type DraftField } from '../http-error.js';
 import { MAX_FILE_BYTES } from './body.js';
@@ -9,9 +10,9 @@ export function readChannel(value: unknown): CampaignChannel {
 }
 
 export function readChannels(form: FormData): CampaignChannel[] {
-    const channels = [...new Set(form.getAll('channel'))].map(readChannel);
-    if (!channels.length) throw new HttpError(400, 'Choose at least one channel.', 'channel');
-    return channels;
+    const requested = form.getAll('channel').map(readChannel);
+    if (!requested.length) throw new HttpError(400, 'Choose at least one channel.', 'channel');
+    return CHANNEL_ORDER.filter(channel => requested.includes(channel));
 }
 
 export function readCampaignId(value: string): string {

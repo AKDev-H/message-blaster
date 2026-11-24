@@ -22,7 +22,7 @@ const logos = {
     },
 };
 
-export function brandLogo(channel, size = 16) {
+function brandLogo(channel, size = 16) {
     const logo = logos[channel];
     const svg = svgElement('svg', { viewBox: logo.viewBox, width: size, height: size, 'aria-hidden': 'true', focusable: 'false' });
     svg.classList.add('brand-logo', `brand-${channel}`);

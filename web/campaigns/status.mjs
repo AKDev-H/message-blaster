@@ -6,14 +6,8 @@ export const RECIPIENT_STATUS_LABELS = {
     PENDING: 'Queued', VALIDATING: 'Queued', QUEUED: 'Queued', SENDING: 'Processing', SENT: 'Sent',
     DELIVERED: 'Delivered', READ: 'Read', FAILED: 'Failed', SKIPPED: 'Skipped', UNKNOWN: 'Needs review',
 };
-export const COUNT_KEYS = ['queued', 'processing', 'completed', 'failed', 'unknown', 'skipped'];
-export const COUNT_LABELS = {
-    queued: 'Queued', processing: 'Processing', completed: 'Completed',
-    failed: 'Failed', unknown: 'Needs review', skipped: 'Skipped',
-};
 
 export const statusOf = campaign => campaign.runStatus || campaign.state;
-export const isActive = campaign => campaign.runActive || campaign.state === 'Running' || campaign.processing > 0;
 const settledCount = campaign => campaign.completed + campaign.failed + campaign.unknown + campaign.skipped;
 
 export function badge(status) {

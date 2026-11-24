@@ -1,5 +1,6 @@
 import type { CampaignChannel } from '../../types/index.js';
 import type { ImportRow } from '../excel/columns.js';
+import { hasControlCharacters } from '../../utils/text.util.js';
 
 export function campaignTemplateValues(channel: CampaignChannel, id: string, row?: ImportRow, address = '') {
     return {
@@ -11,8 +12,7 @@ export function campaignTemplateValues(channel: CampaignChannel, id: string, row
 }
 
 export function isEmailSubject(subject: string): boolean {
-    // eslint-disable-next-line no-control-regex -- Reject control characters in the email subject header.
-    return Boolean(subject) && subject.length <= 255 && !/[\u0000-\u001f\u007f-\u009f]/u.test(subject);
+    return Boolean(subject) && subject.length <= 255 && !hasControlCharacters(subject, { extended: true });
 }
 
 export function isOptedIn(consentStatus: string): boolean {

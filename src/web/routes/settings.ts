@@ -76,12 +76,12 @@ async function sendTest({ req, audit, params }: Request, app: App): Promise<void
     if (!senderAccount(app, channel, settings)) throw new HttpError(409, channel === 'gmail' ? 'Save your Gmail address and App Password first.' : 'Link WhatsApp first.');
     app.runner.ensureIdle();
     const id = await orFail(400, 'Check the test recipient.', () => createTestCampaign(app.store, settings, channel, recipient), 'testRecipient');
-    startTest(app, id, audit);
+    startTest(app, id, channel, audit);
 }
 
-function startTest(app: App, id: string, audit: RequestAudit): void {
+function startTest(app: App, id: string, channel: CampaignChannel, audit: RequestAudit): void {
     try {
-        app.runner.launch(id, 'start', id, audit, 'sender.test');
+        app.runner.launch({ steps: [{ id, channel, mode: 'start' }], approval: id, approve: id, audit, action: 'sender.test' });
     } catch (error) {
         app.store.deleteCampaign(id);
         throw error;

@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
-import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { startWebServer } from '../src/web/server.js';
+import { testEnvironment } from './support/environment.js';
 import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 interface Channel {
@@ -37,10 +37,7 @@ async function workbook(): Promise<Blob> {
 
 test('one campaign page per link, with shared content, per-channel overrides and locked channels', { timeout: 30_000 }, async context => {
     const directory = await mkdtemp(join(tmpdir(), 'message-blaster-groups-web-'));
-    const env = {
-        ...loadEnv(), ...DEFAULT_SETTINGS, DATABASE_URL: join(directory, 'app.db'), ATTACHMENTS_DIR: join(directory, 'files'),
-        LOG_DIR: join(directory, 'logs'), DRY_RUN: true, MAINTENANCE_MODE: false,
-    };
+    const env = testEnvironment(directory);
     approveTestUser(env.DATABASE_URL);
     const dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     context.after(async () => {

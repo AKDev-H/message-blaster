@@ -7,11 +7,11 @@ import { pathToFileURL } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
 import ExcelJS from 'exceljs';
 import type { AuditEvent } from '../src/auth/store.js';
-import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { Store } from '../src/store/index.js';
 import { saveSettings } from '../src/services/settings.service.js';
 import { startWebServer } from '../src/web/server.js';
+import { testEnvironment } from './support/environment.js';
 import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 interface CampaignProgress {
@@ -40,7 +40,7 @@ async function watchProgress(request: ReturnType<typeof authenticatedFetch>, cle
                 const data = buffer.slice(0, boundary).split('\n').find(line => line.startsWith('data: '));
                 buffer = buffer.slice(boundary + 2);
                 if (data) {
-                    const response = await request('/api/campaigns/outreach');
+                    const response = await request('/api/campaign-groups/outreach/gmail');
                     const campaign = response.ok ? ((await response.json()) as { campaign: CampaignProgress }).campaign : undefined;
                     if (campaign && match(campaign)) return campaign;
                 }
@@ -86,12 +86,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     `);
     const importMock = `--import=${pathToFileURL(mockPath).href}`;
     process.env.NODE_OPTIONS = [originalNodeOptions, importMock].filter(Boolean).join(' ');
-    const env = {
-        ...loadEnv(),
-        ...DEFAULT_SETTINGS,
-        DATABASE_URL: join(directory, 'dashboard.db'),
-        ATTACHMENTS_DIR: join(directory, 'pdf'),
-        LOG_DIR: join(directory, 'logs'),
+    const env = testEnvironment(directory, {
         SECRET_KEY_FILE: join(directory, 'secret.key'),
         GMAIL_USER: 'sender@example.com',
         GMAIL_APP_PASSWORD: 'abcdefghijklmnop',
@@ -99,7 +94,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
         SENDER_CONCURRENCY: 1,
         MAX_MESSAGES_PER_RUN: 100,
         MESSAGE_DELAY_MS: 100,
-    };
+    });
     {
         using db = openDatabase(env.DATABASE_URL);
         saveSettings(db, env, { GMAIL_USER: env.GMAIL_USER, GMAIL_APP_PASSWORD: env.GMAIL_APP_PASSWORD, MESSAGE_DELAY_MS: env.MESSAGE_DELAY_MS });
@@ -130,13 +125,16 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     const { url } = dashboard;
     const request = authenticatedFetch(url, await testLogin(url));
-    const command = (action: string, body: Record<string, unknown> = {}, id = 'outreach') => request(`/api/campaigns/${id}/${action}`, {
+    const group = (slug = 'outreach') => `/api/campaign-groups/${slug}`;
+    const channel = (slug = 'outreach') => `${group(slug)}/gmail`;
+    const version = async (slug: string) => ((await (await request(group(slug))).json()) as { campaign: { version: string } }).campaign.version;
+    const command = async (action: string, body: Record<string, unknown> = {}, slug = 'outreach') => request(`${channel(slug)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(['start', 'resume'].includes(action) ? { version: await version(slug), ...body } : body),
     });
     assert.equal((await request('/', { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 200);
-    assert.equal((await request('/api/campaigns', { headers: { Origin: 'https://example.com' } })).status, 403);
+    assert.equal((await request('/api/campaign-groups', { headers: { Origin: 'https://example.com' } })).status, 403);
 
     const sample = await request('/api/template?channel=gmail');
     assert.match(sample.headers.get('content-disposition') ?? '', /gmail-sample\.xlsx/);
@@ -170,13 +168,13 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     upload.set('workbook', new Blob([await workbook.xlsx.writeBuffer()]), 'clients.xlsx');
 
     const readProgress = await watchProgress(request, callback => { stopProgress = callback; });
-    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
+    assert.equal((await request('/api/campaign-groups', { method: 'POST', body: upload })).status, 201);
     const edit = new FormData();
     edit.set('script', 'Hi {{client_name}}, here is your updated brochure.');
     edit.set('subject', 'New brochure');
     edit.set('attachment', 'sales.pdf');
-    assert.equal((await request('/api/campaigns/outreach/draft', { method: 'PUT', body: edit })).status, 200);
-    const before = await (await request('/api/campaigns/outreach')).json();
+    assert.equal((await request(`${group()}/draft`, { method: 'PUT', body: edit })).status, 200);
+    const before = await (await request(channel())).json();
     assert.equal(before.rows[0].message, 'Hi Ari, here is your updated brochure.');
     assert.equal(before.rows[0].pdfFilename, 'sales.pdf');
     assert.equal(before.rows[0].subject, 'New brochure');
@@ -186,34 +184,34 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal((await command('start', { approve: 'outreach' })).status, 202);
     await readProgress(item => item.processing === 1);
     assert.equal((await command('pause')).status, 200);
-    assert.equal((await request('/api/campaigns/outreach', { method: 'DELETE' })).status, 409);
+    assert.equal((await request(group(), { method: 'DELETE' })).status, 409);
     await writeFile(releaseFirst, '');
     const paused = await readProgress(item => item.state === 'Paused' && !item.runActive && item.processing === 0);
     assert.equal(paused.completed, 1);
     assert.equal(paused.queued, 2);
-    assert.equal((await request('/api/campaigns/outreach/draft', { method: 'PUT', body: edit })).status, 409);
+    assert.equal((await request(`${group()}/draft`, { method: 'PUT', body: edit })).status, 409);
 
     assert.equal((await command('resume', { approve: 'outreach' })).status, 202);
     const finished = await readProgress(item => item.state === 'Completed' && !item.runActive);
     assert.equal(finished.completed, 2);
     assert.equal(finished.unknown, 1);
     assert.equal((await command('retry')).status, 409);
-    const after = await (await request('/api/campaigns/outreach')).json();
+    const after = await (await request(channel())).json();
     const unknown = after.rows.find((row: { status: string }) => row.status === 'UNKNOWN');
     assert.equal((await command('review', { recordId: unknown.id, outcome: 'FAILED', note: 'Verified in the simulated sender.' })).status, 200);
     assert.equal((await command('retry')).status, 200);
     assert.equal((await command('resume', { approve: 'outreach' })).status, 202);
     const retried = await readProgress(item => item.completed === 3 && !item.runActive);
     assert.equal(retried.failed, 0);
-    assert.equal((await request('/api/campaigns/outreach/export')).status, 200);
-    assert.equal((await request('/api/campaigns/outreach', { method: 'DELETE' })).status, 204);
-    assert.equal((await request('/api/campaigns/outreach')).status, 404);
+    assert.equal((await request(`${channel()}/export`)).status, 200);
+    assert.equal((await request(group(), { method: 'DELETE' })).status, 204);
+    assert.equal((await request(group())).status, 404);
 
     upload.set('id', 'cancel-test');
-    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
+    assert.equal((await request('/api/campaign-groups', { method: 'POST', body: upload })).status, 201);
     assert.equal((await command('start', { approve: 'cancel-test' }, 'cancel-test')).status, 202);
     assert.equal((await command('cancel', {}, 'cancel-test')).status, 200);
-    const cancelled = await (await request('/api/campaigns/cancel-test')).json();
+    const cancelled = await (await request(channel('cancel-test'))).json();
     assert.equal(cancelled.campaign.state, 'Cancelled');
     assert.equal(cancelled.campaign.skipped, 3);
 
@@ -221,16 +219,17 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
         assert.equal((await request(asset)).status, 200, asset);
     }
 
-    const duplicate = await request('/api/campaigns', { method: 'POST', body: upload });
+    const duplicate = await request('/api/campaign-groups', { method: 'POST', body: upload });
     assert.equal(duplicate.status, 409);
     assert.equal((await duplicate.json()).field, 'id');
 
     upload.set('id', 'rich-script');
     upload.set('script', 'ignored when formatted');
     upload.set('scriptHtml', '<p>Hi <b>{{client_name}}</b></p><script>alert(1)</script><ul><li onclick="x()">Fast</li></ul>');
-    assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
-    const rich = await (await request('/api/campaigns/rich-script')).json();
-    assert.equal(rich.draft.scriptHtml, '<p>Hi <b>{{client_name}}</b></p><ul><li>Fast</li></ul>');
+    assert.equal((await request('/api/campaign-groups', { method: 'POST', body: upload })).status, 201);
+    const rich = await (await request(channel('rich-script'))).json();
+    const richDraft = await (await request(group('rich-script'))).json();
+    assert.equal(richDraft.draft.shared.scriptHtml, '<p>Hi <b>{{client_name}}</b></p><ul><li>Fast</li></ul>');
     assert.equal(rich.rows[0].messageHtml, '<p>Hi <b>Ari</b></p><ul><li>Fast</li></ul>');
     assert.match(rich.rows[0].message, /^Hi Ari\n+ \* Fast$/u);
 
@@ -248,18 +247,18 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     both.append('channel', 'whatsapp');
     both.set('script', 'Hi {{client_name}}');
     both.set('workbook', new Blob([await combinedSample.xlsx.writeBuffer()]), 'both.xlsx');
-    const created = await request('/api/campaigns', { method: 'POST', body: both });
+    const created = await request('/api/campaign-groups', { method: 'POST', body: both });
     assert.equal(created.status, 201);
     assert.deepEqual((await created.json()).ids, ['launch-gmail', 'launch-whatsapp']);
-    assert.equal((await (await request('/api/campaigns/launch-gmail')).json()).campaign.total, 2);
-    const whatsapp = await (await request('/api/campaigns/launch-whatsapp')).json();
+    assert.equal((await (await request(channel('launch'))).json()).campaign.total, 2);
+    const whatsapp = await (await request(`${group('launch')}/whatsapp`)).json();
     assert.equal(whatsapp.campaign.total, 1);
     assert.equal(whatsapp.rows[0].message, 'Hi Ari');
 
     both.set('id', 'launch');
-    assert.equal((await request('/api/campaigns', { method: 'POST', body: both })).status, 409);
+    assert.equal((await request('/api/campaign-groups', { method: 'POST', body: both })).status, 409);
     both.delete('channel');
-    const missing = await request('/api/campaigns', { method: 'POST', body: both });
+    const missing = await request('/api/campaign-groups', { method: 'POST', body: both });
     assert.equal((await missing.json()).field, 'channel');
 
     const put = (path: string, body: unknown) => request(path, {
@@ -296,7 +295,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal(tested.gmail.test.latest.recipient, 'me@example.com');
     const confirmed = await (await post('/api/settings/gmail/test/confirm')).json();
     assert.equal(confirmed.gmail.test.confirmed, true);
-    assert.ok(!(await (await request('/api/campaigns')).json()).campaigns.some((campaign: { isTest: boolean }) => campaign.isTest),
+    assert.ok(!(await (await request('/api/campaign-groups')).json()).campaigns.some((campaign: { isTest: boolean }) => campaign.isTest),
         'test sends stay out of the campaign list');
     const sending = await (await put('/api/settings/sending', { country: 'sg', delaySeconds: 2.5 })).json();
     assert.deepEqual(sending.sending, { country: 'SG', delaySeconds: 2.5 });
@@ -320,10 +319,10 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal((await request('/api/attachments/..%2Fsecret.txt')).status, 404);
 
     const { events } = await (await request('/api/audit')).json() as { events: AuditEvent[] };
-    const start = events.find(event => event.action === 'campaign.start' && event.target === 'outreach');
+    const start = events.find(event => event.action === 'campaign.start' && event.target === 'outreach/gmail');
     assert.equal(start?.outcome, 'accepted');
     assert.ok(events.some(event => event.source === 'worker' && event.action === 'campaign.worker_exit'
-        && event.target === 'outreach' && event.requestId === start?.requestId));
+        && event.target === 'outreach/gmail' && event.requestId === start?.requestId));
     assert.ok(events.some(event => event.action === 'attachment.download' && event.target === null));
     assert.doesNotMatch(JSON.stringify(events), /abcdefghijklmnop|ari@example\.com|notes\.txt/u);
 });

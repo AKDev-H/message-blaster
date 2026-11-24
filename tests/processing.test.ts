@@ -124,8 +124,10 @@ test('crash recovery across connections marks in-flight rows unknown and never r
     const store = new Store(db);
     assert.equal(store.recover(), 1);
     assert.equal(store.getCampaign('recover').state, 'Paused');
+    assert.ok(store.getCampaign('recover').interruptedAt, 'a crash is flagged so the dashboard can explain the pause');
     assert.equal(store.withdraw(row(2).phone), 1);
     store.resume('recover');
+    assert.equal(store.getCampaign('recover').interruptedAt, null, 'resuming clears the flag');
     const sent: string[] = [];
     await processWith(store, 'recover', { isReady: true, async send(message) { sent.push(message.phone); } });
     assert.deepEqual(sent, [row(3).phone]);

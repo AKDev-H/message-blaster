@@ -25,6 +25,7 @@ export interface Campaign {
     accountId: string | null;
     isTest: boolean;
     channel: CampaignChannel;
+    interruptedAt: string | null;
 }
 
 export interface CampaignSummary extends Omit<Campaign, 'accountId'> {
@@ -145,6 +146,7 @@ function campaignMetadata(row: SqlRow): Omit<Campaign, 'accountId'> {
         updatedAt: String(row.updated_at),
         isTest: row.is_test === 1,
         channel: row.channel as CampaignChannel,
+        interruptedAt: nullableText(row.interrupted_at),
     };
 }
 

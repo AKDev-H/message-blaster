@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { config } from 'dotenv';
 import type { CountryCode } from 'libphonenumber-js';
 import { z } from 'zod';
+import { normalizeEmail } from '../utils/email.util.js';
 
 export interface AppSettings {
     GMAIL_USER: string;
@@ -32,6 +33,15 @@ const boolean = (fallback: boolean) =>
 const localPath = (fallback: string) =>
     z.string().trim().min(1).refine(isLocalPath, 'Use a local filesystem path').transform(expandHome).default(fallback);
 
+const emailList = () => z.string().default('').transform((value, context) => {
+    try {
+        return parseEmailList(value);
+    } catch (error) {
+        context.addIssue({ code: 'custom', message: error instanceof Error ? error.message : 'Use a list of email addresses' });
+        return z.NEVER;
+    }
+});
+
 const schema = z.object({
     DATABASE_URL: localPath('./storage/app.db'),
     SECRET_KEY_FILE: localPath(join(configDir(), 'message-blaster', 'secret.key')),
@@ -50,6 +60,7 @@ const schema = z.object({
     WEB_PORT: integer(1, 65_535, 3_000),
     DRY_RUN: boolean(true),
     MAINTENANCE_MODE: boolean(false),
+    APPROVED_ACCOUNTS: emailList(),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -61,6 +72,18 @@ export function loadEnv(): BaseEnvironment {
     const result = schema.safeParse(process.env);
     if (!result.success) throw new Error(describeIssues(result.error.issues));
     return result.data;
+}
+
+export function parseEmailList(value: string): string[] {
+    const inner = value.trim().replace(/^\[([\s\S]*)\]$/u, '$1');
+    const entries = inner.split(',').map(entry => entry.trim().replace(/^(['"])(.*)\1$/u, '$2').trim()).filter(Boolean);
+    return [...new Set(entries.map(entry => {
+        try {
+            return normalizeEmail(entry);
+        } catch {
+            throw new Error(`"${entry}" is not an email address`);
+        }
+    }))];
 }
 
 function describeIssues(issues: readonly z.core.$ZodIssue[]): string {

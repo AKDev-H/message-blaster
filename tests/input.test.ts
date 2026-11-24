@@ -45,9 +45,8 @@ test('generates a private, opt-out sample template without overwriting it', asyn
     assert.deepEqual(await readFile(path), initial);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(path);
-    assert.deepEqual(workbook.worksheets[0]?.getRow(1).values, [
-        // eslint-disable-next-line no-sparse-arrays -- ExcelJS returns one-based row values.
-        , 'Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status',
+    assert.deepEqual((workbook.worksheets[0]?.getRow(1).values as unknown[]).slice(1), [
+        'Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status',
         'Campaign ID', 'Sending Status', 'WhatsApp Message ID', 'Sent At', 'Error Message', 'Retry Count',
     ]);
     const [sample] = await readExcel(path);

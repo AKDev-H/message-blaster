@@ -1,8 +1,8 @@
-import { CAMPAIGN_STATUS_FILTERS, type CampaignQuery, type CampaignStatusFilter } from '../../store/index.js';
+import { CAMPAIGN_STATUS_FILTERS, type GroupQuery, type CampaignStatusFilter } from '../../store/index.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel } from '../../types/index.js';
 import { HttpError } from '../http-error.js';
 
-export function readCampaignQuery(query: URLSearchParams, pageSize: number): CampaignQuery {
+export function readCampaignQuery(query: URLSearchParams, pageSize: number): GroupQuery {
     const status = query.get('status') || undefined;
     const channel = query.get('channel') || undefined;
     const page = Number(query.get('page') ?? '1');

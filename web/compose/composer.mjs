@@ -5,7 +5,7 @@ import { AiWriter } from './ai-writer.mjs';
 import { AttachmentPicker } from './attachments.mjs';
 import { ChannelContent, SHARED } from './channel-content.mjs';
 import { RecipientList } from './recipients/list.mjs';
-import { draftErrors, fileError } from './validation.mjs';
+import { contentErrors, fileError, sourceErrors } from './validation.mjs';
 import { variableOptions } from './variables.mjs';
 
 export class Composer {
@@ -201,18 +201,13 @@ export class Composer {
     }
 
     #errors(tab = this.content.tab) {
-        const value = this.content.effective(tab);
-        const shared = tab === SHARED;
-        const draft = {
-            channels: shared ? this.#channels() : [tab], editing: this.#editing() || !shared, name: this.controls.id.value.trim(), typing: this.#typing(),
-            workbook: this.controls.workbook.files[0], subject: value.subject ?? '', text: value.text ?? '',
+        const content = contentErrors(tab === SHARED ? this.#channels() : [tab], this.content.effective(tab));
+        if (tab !== SHARED) return content;
+        const source = {
+            channels: this.#channels(), editing: this.#editing(), name: this.controls.id.value.trim(), typing: this.#typing(),
+            workbook: this.controls.workbook.files[0],
         };
-        const errors = draftErrors(draft, () => this.recipients.error(this.#editing()));
-        if (!shared) {
-            delete errors.workbook;
-            delete errors.recipients;
-        }
-        return errors;
+        return { ...sourceErrors(source, () => this.recipients.error(this.#editing())), ...content };
     }
 
     #formData() {

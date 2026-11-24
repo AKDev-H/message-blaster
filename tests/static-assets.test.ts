@@ -3,9 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { inlineIcons } from '../src/web/inline-icons.js';
 import { startWebServer } from '../src/web/server.js';
+import { testEnvironment } from './support/environment.js';
 import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 test('icon placeholders are rendered to SVG on the server', () => {
@@ -18,7 +18,7 @@ test('icon placeholders are rendered to SVG on the server', () => {
 
 test('dashboard ships icons inline and revalidates static files with ETags', async context => {
     const directory = await mkdtemp(join(tmpdir(), 'message-blaster-assets-'));
-    const env = { ...loadEnv(), ...DEFAULT_SETTINGS, DATABASE_URL: join(directory, 'app.db'), LOG_DIR: join(directory, 'logs'), MAINTENANCE_MODE: false };
+    const env = testEnvironment(directory);
     approveTestUser(env.DATABASE_URL);
     const dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     context.after(async () => {
@@ -46,7 +46,7 @@ test('dashboard ships icons inline and revalidates static files with ETags', asy
         await stale.arrayBuffer();
     }
 
-    const api = await request('/api/campaigns');
+    const api = await request('/api/campaign-groups');
     await api.arrayBuffer();
     assert.equal(api.headers.get('cache-control'), 'no-store');
 });

@@ -10,6 +10,8 @@ import { campaignPage, get, request, setError, whileBusy } from './shared/ui.mjs
 import { FileViewer } from './viewer/viewer.mjs';
 
 const RECONNECT_CHECK_MS = 5000;
+// The server pings every 15s, so 40s of silence means the stream is dead.
+const STALE_STREAM_MS = 40_000;
 const LIST_TITLE = 'Campaigns | Message Blaster';
 
 hydrateIcons();
@@ -91,12 +93,31 @@ function showLoadError(error) {
 }
 
 function followLiveUpdates() {
-    const events = new EventSource('/api/events');
-    events.addEventListener('open', () => setConnection('live', 'Live'));
-    events.addEventListener('message', event => onLiveUpdate(event));
-    events.addEventListener('error', () => setConnection('offline', 'Reconnecting…'));
+    let events;
+    let lastSeen = Date.now();
+    const seen = () => { lastSeen = Date.now(); };
+    const isStale = () => events.readyState === EventSource.CLOSED || Date.now() - lastSeen > STALE_STREAM_MS;
+    const connect = () => {
+        events?.close();
+        events = new EventSource('/api/events');
+        seen();
+        events.addEventListener('open', () => { seen(); setConnection('live', 'Live'); });
+        events.addEventListener('message', event => { seen(); onLiveUpdate(event); });
+        events.addEventListener('ping', seen);
+        events.addEventListener('error', () => setConnection('offline', 'Reconnecting…'));
+    };
+    // After sleep the socket can look OPEN while it is dead, so a wake always re-fetches and replaces a silent stream.
+    const catchUp = () => {
+        if (document.visibilityState !== 'visible') return;
+        if (isStale()) connect();
+        refreshView();
+    };
+    connect();
+    document.addEventListener('visibilitychange', catchUp);
+    window.addEventListener('online', catchUp);
     window.setInterval(() => {
-        if (events.readyState !== EventSource.OPEN) refreshView();
+        if (isStale()) catchUp();
+        else if (events.readyState !== EventSource.OPEN) refreshView();
     }, RECONNECT_CHECK_MS);
 }
 

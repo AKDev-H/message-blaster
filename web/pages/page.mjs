@@ -35,7 +35,7 @@ function showRequestedPath() {
 function waitForReturn() {
     if (window.location.pathname.startsWith('/errors/')) return;
     window.setInterval(async () => {
-        const response = await fetch('/api/campaigns', { cache: 'no-store' }).catch(() => null);
+        const response = await fetch('/api/session', { cache: 'no-store' }).catch(() => null);
         if (response?.ok) window.location.replace('/');
     }, POLL_MS);
 }

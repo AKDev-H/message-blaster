@@ -13,6 +13,7 @@ const env = {
     SECRET_KEY_FILE: resolve('storage/cypress/secret.key'),
     DRY_RUN: true,
     MAINTENANCE_MODE: false,
+    APPROVED_ACCOUNTS: [],
 };
 approveTestUser(env.DATABASE_URL);
 const dashboard = await startWebServer(env, env.WEB_PORT, {

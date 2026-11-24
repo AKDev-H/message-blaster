@@ -1,12 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { CAMPAIGN_ID } from '../config/constants.js';
-import { transaction } from '../database/transaction.js';
-import { CampaignExistsError, ConflictError, NotFoundError } from '../errors.js';
-import { MESSAGE_STATUSES, type CampaignChannel, type MessageStatus } from '../types/index.js';
-import { getCampaignSummary, type CampaignStatusFilter } from './campaigns.js';
+import { CampaignExistsError, NotFoundError } from '../errors.js';
+import type { CampaignChannel } from '../types/index.js';
+import { getCampaignSummary } from './campaigns.js';
 import { nowIso, nullableText, toCampaignSummary, type CampaignSummary, type SqlRow } from './records.js';
 import { PENDING_STATUSES, SENT_STATUSES } from './statuses.js';
 
+export const CAMPAIGN_STATUS_FILTERS = ['queued', 'processing', 'completed', 'failed'] as const;
+export type CampaignStatusFilter = typeof CAMPAIGN_STATUS_FILTERS[number];
 export type ContactIdentity = 'row' | 'none';
 export const CHANNEL_ORDER: readonly CampaignChannel[] = ['gmail', 'whatsapp'];
 
@@ -72,15 +73,6 @@ export interface GroupPage {
     totals: Pick<DeliveryMetrics, 'queued' | 'processing' | 'completed' | 'failed' | 'unknown'>;
 }
 
-export interface PairCandidate {
-    slug: string;
-    gmail: string;
-    whatsapp: string;
-    sameWorkbook: boolean;
-    createdTogether: boolean;
-    slugAvailable: boolean;
-}
-
 const COUNT_COLUMNS = `
     coalesce(sum(s.total), 0) AS total,
     coalesce(sum(s.total) FILTER (WHERE s.status IN ${PENDING_STATUSES}), 0) AS queued,
@@ -100,7 +92,7 @@ const STATUS_CONDITIONS: Record<CampaignStatusFilter, string> = {
     failed: '(failed > 0 OR unknown > 0)',
 };
 const MEMBER_SUMMARY = `
-    SELECT c.id, c.state, c.created_at, c.updated_at, c.is_test, c.channel, c.group_id, ${COUNT_COLUMNS}
+    SELECT c.id, c.state, c.created_at, c.updated_at, c.is_test, c.channel, c.interrupted_at, c.group_id, ${COUNT_COLUMNS}
     FROM campaigns c LEFT JOIN campaign_status_counts s ON s.campaign_id = c.id
 `;
 const GROUP_PEOPLE = `
@@ -112,22 +104,6 @@ const INSERT_GROUP = `
     INSERT INTO campaign_groups(slug, name, contact_identity, shared_script, shared_script_html, shared_subject, shared_attachment,
         created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
-const PAIR_CANDIDATES = `
-    SELECT substr(gm.id, 1, length(gm.id) - 6) AS slug, gm.id AS gmail, wa.id AS whatsapp,
-        coalesce(gd.workbook = wd.workbook, 0) AS same_workbook,
-        abs(julianday(gm.created_at) - julianday(wa.created_at)) * 86400 < 5 AS created_together,
-        NOT EXISTS (SELECT 1 FROM campaign_groups g WHERE g.slug = substr(gm.id, 1, length(gm.id) - 6)) AS slug_available
-    FROM campaigns gm
-    JOIN campaigns wa ON wa.id = substr(gm.id, 1, length(gm.id) - 6) || '-whatsapp'
-    LEFT JOIN web_campaign_drafts gd ON gd.campaign_id = gm.id
-    LEFT JOIN web_campaign_drafts wd ON wd.campaign_id = wa.id
-    WHERE gm.id LIKE '%-gmail' AND gm.channel = 'gmail' AND wa.channel = 'whatsapp' AND gm.is_test = 0 AND wa.is_test = 0
-        AND gm.group_id IS NOT NULL AND wa.group_id IS NOT NULL AND gm.group_id <> wa.group_id
-        AND (SELECT count(*) FROM campaigns c WHERE c.group_id = gm.group_id) = 1
-        AND (SELECT count(*) FROM campaigns c WHERE c.group_id = wa.group_id) = 1
-    ORDER BY gm.created_at, gm.id
-`;
-
 export function createGroup(db: DatabaseSync, slug: string, name: string, identity: ContactIdentity, shared?: SharedContent): number {
     if (!CAMPAIGN_ID.test(slug)) throw new Error('Use 1–64 letters, numbers, hyphens, or underscores for the campaign link');
     if (db.prepare('SELECT 1 FROM campaign_groups WHERE slug = ?').get(slug)) throw new CampaignExistsError(`Campaign "${slug}" already exists`);
@@ -222,51 +198,6 @@ export function setPendingChannels(db: DatabaseSync, groupId: number, channels: 
 
 export function deleteEmptyGroup(db: DatabaseSync, groupId: number): void {
     db.prepare('DELETE FROM campaign_groups WHERE id = ? AND NOT EXISTS (SELECT 1 FROM campaigns WHERE group_id = ?)').run(groupId, groupId);
-}
-
-export function pairCandidates(db: DatabaseSync): PairCandidate[] {
-    return db.prepare(PAIR_CANDIDATES).all().map(row => ({
-        slug: String(row.slug), gmail: String(row.gmail), whatsapp: String(row.whatsapp),
-        sameWorkbook: row.same_workbook === 1, createdTogether: row.created_together === 1, slugAvailable: row.slug_available === 1,
-    }));
-}
-
-export function mergePair(db: DatabaseSync, gmailId: string, whatsappId: string, slug: string, force: boolean): CampaignGroup {
-    return transaction(db, () => {
-        const candidate = pairCandidates(db).find(pair => pair.gmail === gmailId && pair.whatsapp === whatsappId);
-        const loose = candidate ?? looseCandidate(db, gmailId, whatsappId);
-        if (!candidate && !force) throw new ConflictError(`${gmailId} and ${whatsappId} are not a Gmail/WhatsApp pair. Pass --force to group them anyway.`);
-        if (!loose.sameWorkbook && !loose.createdTogether && !force) {
-            throw new ConflictError('No evidence links these campaigns: they were not created together from the same workbook. Pass --force after checking them.');
-        }
-        const previous = [gmailId, whatsappId].map(id => groupOfCampaign(db, id)!);
-        const created = previous.map(group => group.createdAt).sort()[0]!;
-        const groupId = createGroup(db, slug, slug, loose.sameWorkbook ? 'row' : 'none');
-        db.prepare('UPDATE campaign_groups SET created_at = ? WHERE id = ?').run(created, groupId);
-        db.prepare('UPDATE campaigns SET group_id = ? WHERE id IN (?, ?)').run(groupId, gmailId, whatsappId);
-        for (const group of previous) deleteEmptyGroup(db, group.id);
-        return findGroup(db, slug);
-    });
-}
-
-export function emptyStatusCounts(): Record<MessageStatus, number> {
-    return Object.fromEntries(MESSAGE_STATUSES.map(status => [status, 0])) as Record<MessageStatus, number>;
-}
-
-function looseCandidate(db: DatabaseSync, gmailId: string, whatsappId: string): Pick<PairCandidate, 'sameWorkbook' | 'createdTogether'> {
-    const row = db.prepare(`SELECT coalesce(gd.workbook = wd.workbook, 0) AS same_workbook,
-            abs(julianday(gm.created_at) - julianday(wa.created_at)) * 86400 < 5 AS created_together
-        FROM campaigns gm JOIN campaigns wa ON wa.id = ? LEFT JOIN web_campaign_drafts gd ON gd.campaign_id = gm.id
-        LEFT JOIN web_campaign_drafts wd ON wd.campaign_id = wa.id
-        WHERE gm.id = ? AND gm.channel = 'gmail' AND wa.channel = 'whatsapp' AND gm.is_test = 0 AND wa.is_test = 0`).get(whatsappId, gmailId);
-    if (!row) throw new NotFoundError('Choose an existing Gmail campaign and an existing WhatsApp campaign');
-    const shared = db.prepare('SELECT count(*) AS n FROM campaigns WHERE id IN (?, ?) GROUP BY group_id').all(gmailId, whatsappId);
-    if (shared.length === 1) throw new ConflictError('These campaigns are already grouped');
-    for (const id of [gmailId, whatsappId]) {
-        const members = db.prepare('SELECT count(*) AS n FROM campaigns WHERE group_id = (SELECT group_id FROM campaigns WHERE id = ?)').get(id);
-        if (Number(members?.n) !== 1) throw new ConflictError(`${id} already belongs to a campaign with another channel`);
-    }
-    return { sameWorkbook: row.same_workbook === 1, createdTogether: row.created_together === 1 };
 }
 
 function membersByGroup(db: DatabaseSync, groupIds: number[]): Map<number, CampaignSummary[]> {

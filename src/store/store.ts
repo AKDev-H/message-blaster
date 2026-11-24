@@ -6,6 +6,7 @@ import * as consent from './consent.js';
 import * as delivery from './delivery.js';
 import * as drafts from './drafts.js';
 import * as groups from './groups.js';
+import * as pairs from './pairs.js';
 import * as lifecycle from './lifecycle.js';
 import * as receipts from './receipts.js';
 import * as recipients from './recipients.js';
@@ -43,11 +44,6 @@ export class Store {
         return transaction(this.db, () => this.insertCampaign({ id, rows, channel, isTest, draft }));
     }
 
-    importCampaigns(list: readonly NewCampaign[]): Campaign[] {
-        return transaction(this.db, () => list.map(campaign => this.insertCampaign(campaign)));
-    }
-
-
     createCampaignGroup({ slug, name, shared, campaigns: members }: NewCampaignGroup): Campaign[] {
         return transaction(this.db, () => {
             const groupId = groups.createGroup(this.db, slug, name, 'row', shared);
@@ -57,10 +53,6 @@ export class Store {
 
     campaignGroup(slug: string): groups.CampaignGroup {
         return groups.findGroup(this.db, slug);
-    }
-
-    groupOfCampaign(id: string): groups.CampaignGroup | undefined {
-        return groups.groupOfCampaign(this.db, id);
     }
 
     groupMembers(group: groups.CampaignGroup): CampaignSummary[] {
@@ -107,12 +99,12 @@ export class Store {
         });
     }
 
-    pairCandidates(): groups.PairCandidate[] {
-        return groups.pairCandidates(this.db);
+    pairCandidates(): pairs.PairCandidate[] {
+        return pairs.pairCandidates(this.db);
     }
 
     groupPair(gmailId: string, whatsappId: string, slug: string, force = false): groups.CampaignGroup {
-        return groups.mergePair(this.db, gmailId, whatsappId, slug, force);
+        return pairs.mergePair(this.db, gmailId, whatsappId, slug, force);
     }
 
     getCampaign(id: string): Campaign {
@@ -123,16 +115,8 @@ export class Store {
         return campaigns.getCampaignSummary(this.db, id);
     }
 
-    listCampaignPage(query: campaigns.CampaignQuery): campaigns.CampaignPage {
-        return campaigns.listCampaignPage(this.db, query);
-    }
-
     listActiveCampaignIds(): string[] {
         return campaigns.listActiveCampaignIds(this.db);
-    }
-
-    listCampaignSummaries(): CampaignSummary[] {
-        return campaigns.listCampaignSummaries(this.db);
     }
 
     latestTestCampaign(channel: CampaignChannel): Campaign | undefined {
@@ -233,6 +217,10 @@ export class Store {
 
     recover(): number {
         return receipts.recoverInterrupted(this.db);
+    }
+
+    markInterrupted(id: string): void {
+        campaigns.markInterrupted(this.db, id);
     }
 
 

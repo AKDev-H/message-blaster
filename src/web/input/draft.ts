@@ -12,47 +12,98 @@ import { HttpError } from '../http-error.js';
 import { readFile, readText } from './fields.js';
 import { readTypedRecipients } from './recipients.js';
 
-export type Draft = Awaited<ReturnType<typeof readDraft>>;
-export type ChannelDraft = Draft & { overrides: DraftField[] };
-export type ParsedWorkbook = Map<CampaignChannel, ImportRow[]>;
+interface Message {
+    script: string;
+    scriptHtml?: string;
+}
+
+export interface Draft extends Message {
+    workbook: Buffer;
+    source: 'recipients' | 'workbook';
+    subject: string;
+    attachment: string;
+}
+
+export interface ChannelDraft extends Draft {
+    overrides: DraftField[];
+}
+
+export interface CampaignTarget {
+    id: string;
+    channel: CampaignChannel;
+}
+
+export interface PreparedCampaign extends CampaignTarget {
+    draft: ChannelDraft;
+    rows: PreparedRow[];
+}
 
 const WORKBOOK_PROBLEMS = /^(Missing Excel|Duplicate Excel|A workbook can contain|The workbook has no)/u;
 
-export async function readDraft(form: FormData, previousWorkbook?: Buffer) {
+export async function readDraft(form: FormData, previousWorkbook?: Buffer): Promise<Draft> {
     return {
         ...await readRecipientSource(form, previousWorkbook),
-        ...readScript(form),
+        ...readMessage(form, ''),
         subject: readText(form, 'subject', 255, 'subject').trim(),
         attachment: readText(form, 'attachment', 255, 'attachment').trim(),
     };
 }
 
-export function channelDraft(form: FormData, draft: Draft, channel: CampaignChannel): ChannelDraft {
-    const overrides: DraftField[] = [];
-    const content: ChannelDraft = { ...draft, overrides };
-    if (form.has(`${channel}.script`) || form.has(`${channel}.scriptHtml`)) {
-        const { script, scriptHtml } = readScript(form, `${channel}.`);
-        Object.assign(content, { script, scriptHtml });
-        if (scriptHtml === undefined) delete content.scriptHtml;
-        overrides.push('message');
-    }
-    if (channel === 'gmail' && form.has('gmail.subject')) {
-        content.subject = readText(form, 'gmail.subject', 255, 'subject').trim();
-        overrides.push('subject');
-    }
-    if (channel !== 'gmail') content.subject = '';
-    if (form.has(`${channel}.attachment`)) {
-        content.attachment = readText(form, `${channel}.attachment`, 255, 'attachment').trim();
-        overrides.push('attachment');
-    }
-    return content;
+export function sharedContent({ script, scriptHtml, subject, attachment }: Draft): SharedContent {
+    return { script, subject, attachment, ...(scriptHtml ? { scriptHtml } : {}) };
 }
 
-export function sharedContent(draft: Draft): SharedContent {
-    return { script: draft.script, subject: draft.subject, attachment: draft.attachment, ...(draft.scriptHtml ? { scriptHtml: draft.scriptHtml } : {}) };
+export function channelDrafts(form: FormData, shared: Draft, channels: readonly CampaignChannel[], combined: boolean): ChannelDraft[] {
+    return channels.map(channel => (combined ? channelDraft(form, shared, channel) : { ...shared, overrides: [] }));
 }
 
-export async function parseWorkbook(env: Environment, channels: readonly CampaignChannel[], drafts: readonly Draft[]): Promise<ParsedWorkbook> {
+export async function prepareCampaigns(store: Store, env: Environment, targets: readonly CampaignTarget[], drafts: readonly ChannelDraft[],
+    group?: string): Promise<PreparedCampaign[]> {
+    const parsed = await parseWorkbook(env, targets.map(target => target.channel), drafts);
+    const prepared: PreparedCampaign[] = [];
+    for (const [index, target] of targets.entries()) {
+        const draft = drafts[index]!;
+        const rows = selectRows(parsed.get(target.channel) ?? [], target, draft, group);
+        prepared.push({ ...target, draft, rows: await prepareRows(store, env, target.id, rows, draft.script, target.channel, draft.scriptHtml) });
+    }
+    return prepared;
+}
+
+function channelDraft(form: FormData, shared: Draft, channel: CampaignChannel): ChannelDraft {
+    const prefix = `${channel}.`;
+    const message = form.has(`${prefix}script`) || form.has(`${prefix}scriptHtml`) ? readMessage(form, prefix) : undefined;
+    const subject = channel === 'gmail' && form.has('gmail.subject') ? readText(form, 'gmail.subject', 255, 'subject').trim() : undefined;
+    const attachment = form.has(`${prefix}attachment`) ? readText(form, `${prefix}attachment`, 255, 'attachment').trim() : undefined;
+    const { scriptHtml: _sharedHtml, ...withoutHtml } = shared;
+    return {
+        ...(message ? { ...withoutHtml, ...message } : shared),
+        subject: channel === 'gmail' ? subject ?? shared.subject : '',
+        attachment: attachment ?? shared.attachment,
+        overrides: [
+            ...(message ? ['message' as const] : []),
+            ...(subject === undefined ? [] : ['subject' as const]),
+            ...(attachment === undefined ? [] : ['attachment' as const]),
+        ],
+    };
+}
+
+async function readRecipientSource(form: FormData, previousWorkbook?: Buffer): Promise<Pick<Draft, 'workbook' | 'source'>> {
+    const typed = readTypedRecipients(form);
+    if (typed.length) return { workbook: await createRecipientsWorkbook(typed), source: 'recipients' };
+    const upload = readFile(form, 'workbook', '.xlsx', 'workbook');
+    const workbook = upload ? Buffer.from(await upload.arrayBuffer()) : previousWorkbook;
+    if (!workbook) throw new HttpError(400, 'Choose an Excel .xlsx workbook.', 'workbook');
+    return { workbook, source: 'workbook' };
+}
+
+function readMessage(form: FormData, prefix: string): Message {
+    const html = cleanScriptHtml(readText(form, `${prefix}scriptHtml`, MAX_SCRIPT_HTML_LENGTH, 'script'));
+    const plain = html ? scriptText(html) : '';
+    if (plain) return { script: plain, scriptHtml: html };
+    return { script: readText(form, `${prefix}script`, 32_767, 'script') };
+}
+
+async function parseWorkbook(env: Environment, channels: readonly CampaignChannel[], drafts: readonly Draft[]): Promise<Map<CampaignChannel, ImportRow[]>> {
     try {
         const parsed = await readExcelChannels(drafts[0]!.workbook, channels);
         for (const name of new Set(drafts.map(draft => draft.attachment).filter(Boolean))) await readAttachment(env.ATTACHMENTS_DIR, name);
@@ -64,46 +115,19 @@ export async function parseWorkbook(env: Environment, channels: readonly Campaig
     }
 }
 
-export async function prepareChannel(store: Store, env: Environment, id: string, channel: CampaignChannel, draft: Draft,
-    parsed: ParsedWorkbook, group?: string): Promise<PreparedRow[]> {
-    const selected = rowsForCampaign(parsed.get(channel) ?? [], id, channel, group);
+function selectRows(rows: ImportRow[], { id, channel }: CampaignTarget, draft: Draft, group?: string): ImportRow[] {
+    const matching = rows.filter(row => !row.campaignId || row.campaignId === id || row.campaignId === group);
+    const selected = group ? matching.filter(row => (channel === 'gmail' ? row.email : row.phone)?.trim()) : matching;
     if (!selected.length) throw new HttpError(400, noRowsMessage(channel, group), draft.source);
-    for (const row of selected) applyDraftDefaults(row, draft, channel);
-    return prepareRows(store, env, id, selected, draft.script, channel, draft.scriptHtml);
+    return selected.map(row => withDefaults(row, draft, channel));
 }
 
-export async function previewDraft(store: Store, env: Environment, id: string, channel: CampaignChannel, draft: Draft,
-    group?: string): Promise<PreparedRow[]> {
-    return prepareChannel(store, env, id, channel, draft, await parseWorkbook(env, [channel], [draft]), group);
-}
-
-async function readRecipientSource(form: FormData, previousWorkbook?: Buffer) {
-    const typed = readTypedRecipients(form);
-    if (typed.length) return { workbook: await createRecipientsWorkbook(typed), source: 'recipients' as const };
-    const upload = readFile(form, 'workbook', '.xlsx', 'workbook');
-    const workbook = upload ? Buffer.from(await upload.arrayBuffer()) : previousWorkbook;
-    if (!workbook) throw new HttpError(400, 'Choose an Excel .xlsx workbook.', 'workbook');
-    return { workbook, source: 'workbook' as const };
-}
-
-function readScript(form: FormData, prefix = ''): { script: string; scriptHtml?: string } {
-    const html = cleanScriptHtml(readText(form, `${prefix}scriptHtml`, MAX_SCRIPT_HTML_LENGTH, 'script'));
-    const plain = html ? scriptText(html) : '';
-    if (plain) return { script: plain, scriptHtml: html };
-    return { script: readText(form, `${prefix}script`, 32_767, 'script') };
-}
-
-function rowsForCampaign(rows: ImportRow[], id: string, channel: CampaignChannel, group?: string): ImportRow[] {
-    const matches = rows.filter(row => !row.campaignId || row.campaignId === id || row.campaignId === group);
-    return group ? matches.filter(row => (channel === 'gmail' ? row.email : row.phone)?.trim()) : matches;
+function withDefaults(row: ImportRow, draft: Draft, channel: CampaignChannel): ImportRow {
+    const subject = channel === 'gmail' && !row.subject ? { subject: draft.subject } : {};
+    return { ...row, ...subject, pdfFilename: row.pdfFilename || draft.attachment };
 }
 
 function noRowsMessage(channel: CampaignChannel, group?: string): string {
     if (!group) return 'No rows match this campaign. Check the workbook’s Campaign ID column.';
     return channel === 'gmail' ? 'No rows have an email address for Gmail.' : 'No rows have a phone number for WhatsApp.';
-}
-
-function applyDraftDefaults(row: ImportRow, draft: Draft, channel: CampaignChannel): void {
-    if (!row.pdfFilename) row.pdfFilename = draft.attachment;
-    if (!row.subject && channel === 'gmail') row.subject = draft.subject;
 }

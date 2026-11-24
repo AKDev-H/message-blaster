@@ -27,7 +27,7 @@ export class LiveUpdates {
         const keepAlive = () => {
             this.revalidate();
             for (const client of this.#subscribers.keys())
-                this.write(client, ': keep-alive\n\n', false);
+                this.write(client, 'event: ping\ndata: ping\n\n', false);
         };
         this.#timers = [
             setInterval(() => this.publishSafely(), PROGRESS_CHECK_MS).unref(),

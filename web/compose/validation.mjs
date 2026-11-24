@@ -6,15 +6,17 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/iu;
 const SCRIPT_LIMITS = { gmail: 32767, whatsapp: 4096 };
 const PLACEHOLDER = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}|\{\{|\}\}/gu;
 
-export function draftErrors(draft, recipientError) {
-    const { channels, editing } = draft;
-    const errors = editing ? {} : { id: nameError(draft.name, channels) };
+export function sourceErrors({ channels, editing, name, typing, workbook }, recipientError) {
+    const errors = editing ? {} : { id: nameError(name, channels) };
     if (!channels.length) return { ...errors, channel: 'Choose at least one channel.' };
-    if (draft.typing) errors.recipients = recipientError();
-    else errors.workbook = fileError(draft.workbook, '.xlsx', !editing);
-    if (channels.includes('gmail')) errors.subject = subjectError(draft.subject);
-    errors.script = scriptError(draft.text, channels);
+    if (typing) errors.recipients = recipientError();
+    else errors.workbook = fileError(workbook, '.xlsx', !editing);
     return errors;
+}
+
+export function contentErrors(channels, { subject = '', text = '' }) {
+    if (!channels.length) return {};
+    return { subject: channels.includes('gmail') ? subjectError(subject) : '', script: scriptError(text, channels) };
 }
 
 export function fileError(file, extension, required) {

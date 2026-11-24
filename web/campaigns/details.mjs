@@ -1,22 +1,11 @@
-import { channelMark, channelMarks } from '../shared/brands.mjs';
-import { CHANNEL_LABELS, channelList, plural } from '../shared/labels.mjs';
-import { button, element, get, groupPath, number, request, setError } from '../shared/ui.mjs';
+import { channelMarks } from '../shared/brands.mjs';
+import { element, get, groupPath, request, setError } from '../shared/ui.mjs';
 import { buttonSignature, channelButtons, groupButtons } from './actions.mjs';
+import {
+    channelCard, channelHeading, describeCampaign, metricTiles, OVERVIEW, paginate, sendPlanNotice, skeletonRecipientRows, viewTab,
+} from './detail-parts.mjs';
 import { emptyRecipientRow, recipientRow } from './recipient-rows.mjs';
 import { badge, statusOf } from './status.mjs';
-
-const OVERVIEW = 'overview';
-const METRICS = [
-    ['peopleSent', 'People sent to', true],
-    ['completed', 'Successful sends', true],
-    ['failed', 'Failed', true],
-    ['unknown', 'Needs review', false],
-    ['queued', 'Queued', true],
-    ['processing', 'Sending', false],
-    ['delivered', 'Delivered', false],
-    ['read', 'Read', false],
-    ['skipped', 'Skipped', false],
-];
 
 export class CampaignDetails {
     #panel = get('details');
@@ -49,10 +38,6 @@ export class CampaignDetails {
         return { slug: campaign.slug, name: campaign.name, version: campaign.version, channels: channels.map(channel => channel.channel) };
     }
 
-    get detail() {
-        return this.#detail;
-    }
-
     open(slug) {
         if (this.#slug !== slug) this.#reset(slug);
         setError('detail-error', '');
@@ -70,15 +55,6 @@ export class CampaignDetails {
         this.#panel.hidden = true;
     }
 
-    showChannel(channel) {
-        if (!this.#detail || this.#view === channel) return;
-        this.#view = channel;
-        this.#rows = null;
-        this.#recipientRows.replaceChildren(...skeletonRecipientRows());
-        this.#render();
-        this.reload();
-    }
-
     async reload() {
         if (!this.#slug) return;
         this.#pendingRequest?.abort();
@@ -88,16 +64,22 @@ export class CampaignDetails {
             const detail = await request(groupPath(this.#slug), { signal: loading.signal });
             const view = this.#viewFor(detail);
             const rows = view === OVERVIEW ? null : await request(this.#rowsUrl(view), { signal: loading.signal });
-            this.#show(detail, rows, loading);
+            if (this.#pendingRequest === loading) this.#show(detail, view, rows);
         } catch (error) {
             if (error.name === 'AbortError' || this.#pendingRequest !== loading) return;
-            if (error.status === 404) {
-                this.close();
-                this.on.missing();
-            } else {
-                setError('detail-error', error);
-            }
+            if (error.status !== 404) return setError('detail-error', error);
+            this.close();
+            this.on.missing();
         }
+    }
+
+    #select(view) {
+        if (!this.#detail || this.#view === view) return;
+        this.#view = view;
+        this.#rows = null;
+        if (view !== OVERVIEW) this.#recipientRows.replaceChildren(...skeletonRecipientRows());
+        this.#render();
+        if (view !== OVERVIEW) this.reload();
     }
 
     #viewFor(detail) {
@@ -109,12 +91,11 @@ export class CampaignDetails {
         return `${groupPath(this.#slug)}/${channel}?page=${this.#pages.get(channel) ?? 1}`;
     }
 
-    #show(detail, rows, loading) {
-        if (this.#pendingRequest !== loading) return;
+    #show(detail, view, rows) {
         this.#detail = detail;
-        this.#view = this.#viewFor(detail);
+        this.#view = view;
         this.#rows = rows;
-        if (rows) this.#pages.set(this.#view, rows.page);
+        if (rows) this.#pages.set(view, rows.page);
         document.title = `${detail.campaign.name} | Message Blaster`;
         this.#render();
     }
@@ -127,11 +108,8 @@ export class CampaignDetails {
         this.#rows = null;
         get('detail-heading').textContent = slug;
         get('detail-description').replaceChildren(element('span', 'skeleton skeleton-line wide'));
-        for (const key of ['detail-state', 'detail-actions', 'detail-summary', 'detail-channels', 'channel-actions', 'page-number']) get(key).replaceChildren();
-        this.#tabs.hidden = true;
-        get('detail-notice').hidden = true;
-        get('channel-toolbar').hidden = true;
-        get('detail-channels').hidden = true;
+        for (const id of ['detail-state', 'detail-actions', 'detail-summary', 'detail-channels', 'channel-actions', 'page-number']) get(id).replaceChildren();
+        for (const id of ['detail-tabs', 'detail-notice', 'channel-toolbar', 'detail-channels']) get(id).hidden = true;
         get('detail-recipients').hidden = false;
         this.#recipientRows.replaceChildren(...skeletonRecipientRows());
         delete this.#actions.dataset.signature;
@@ -139,34 +117,31 @@ export class CampaignDetails {
     }
 
     #render() {
-        const { campaign, channels } = this.#detail;
+        const { campaign, channels, metrics } = this.#detail;
         const combined = channels.length > 1;
         const channel = channels.find(item => item.channel === this.#view);
         this.#renderHeader();
         this.#renderTabs(combined);
-        this.#renderNotice();
-        this.#renderMetrics(channel && combined ? { ...channel.metrics, peopleSent: channel.metrics.completed } : this.#detail.metrics, channels);
+        const notice = sendPlanNotice(campaign.sendPlan);
+        get('detail-notice').textContent = notice;
+        get('detail-notice').hidden = !notice;
+        const shown = channel && combined ? { ...channel.metrics, peopleSent: channel.metrics.completed } : metrics;
+        get('detail-summary').replaceChildren(...metricTiles(shown, channels));
         get('detail-channels').hidden = Boolean(channel);
-        if (!channel) this.#renderChannelCards(channels);
+        if (!channel) get('detail-channels').replaceChildren(...channels.map(item => channelCard(item, view => this.#select(view))));
         get('detail-recipients').hidden = !channel;
         get('channel-toolbar').hidden = !channel || !combined;
         if (channel && combined) this.#renderChannelToolbar(channel);
         if (channel && this.#rows) this.#renderRecipients(channel);
-        setError('detail-error', (channel ? channel.runError : campaign.runError) || '');
+        setError('detail-error', (channel ?? campaign).runError || '');
     }
 
     #renderHeader() {
-        const { campaign, channels, metrics } = this.#detail;
+        const { campaign } = this.#detail;
         get('detail-heading').textContent = campaign.name;
         get('detail-state').replaceChildren(badge(statusOf(campaign)));
-        get('detail-description').replaceChildren(channelMarks(campaign.channels), element('span', '', describe(campaign, channels, metrics)));
-        const signature = buttonSignature(this.#detail);
-        if (this.#actions.dataset.signature === signature) return;
-        const focused = this.#actions.contains(document.activeElement) ? document.activeElement.textContent : '';
-        const buttons = groupButtons(this.#detail, this.#handlers());
-        this.#actions.dataset.signature = signature;
-        this.#actions.replaceChildren(...buttons);
-        if (focused) buttons.find(node => node.textContent === focused)?.focus({ preventScroll: true });
+        get('detail-description').replaceChildren(channelMarks(campaign.channels), element('span', '', describeCampaign(this.#detail)));
+        replaceButtons(this.#actions, buttonSignature(this.#detail), () => groupButtons(this.#detail, this.#handlers()));
     }
 
     #renderTabs(combined) {
@@ -175,31 +150,13 @@ export class CampaignDetails {
         const views = [OVERVIEW, ...this.#detail.campaign.channels];
         if (this.#tabs.dataset.views !== views.join()) {
             this.#tabs.dataset.views = views.join();
-            this.#tabs.replaceChildren(...views.map(view => this.#tab(view)));
+            this.#tabs.replaceChildren(...views.map(view => viewTab(view, selected => this.#select(selected))));
         }
         for (const tab of this.#tabs.children) {
             const selected = tab.dataset.detailChannel === this.#view;
             tab.setAttribute('aria-selected', String(selected));
             tab.tabIndex = selected ? 0 : -1;
         }
-    }
-
-    #tab(view) {
-        const tab = element('button');
-        tab.type = 'button';
-        tab.setAttribute('role', 'tab');
-        tab.dataset.detailChannel = view;
-        if (view === OVERVIEW) tab.append(element('span', '', 'Overview'));
-        else tab.append(channelMark(view, 14), element('span', '', CHANNEL_LABELS[view]));
-        tab.addEventListener('click', () => (view === OVERVIEW ? this.#showOverview() : this.showChannel(view)));
-        return tab;
-    }
-
-    #showOverview() {
-        if (this.#view === OVERVIEW) return;
-        this.#view = OVERVIEW;
-        this.#rows = null;
-        this.#render();
     }
 
     #moveTab(event) {
@@ -211,48 +168,10 @@ export class CampaignDetails {
         next.focus();
     }
 
-    #renderNotice() {
-        const notice = get('detail-notice');
-        const { pending, continuing } = this.#detail.campaign.sendPlan;
-        notice.hidden = !pending.length;
-        if (!pending.length) return;
-        const names = pending.map(channel => CHANNEL_LABELS[channel]).join(' and ');
-        notice.textContent = continuing
-            ? `${names} will start automatically when the current channel finishes.`
-            : `${names} hasn’t started yet. Review it, then send it when you’re ready.`;
-    }
-
-    #renderMetrics(metrics, channels) {
-        const shown = METRICS.filter(([key, , always]) => always || metrics[key]);
-        get('detail-summary').replaceChildren(...shown.map(([key, label]) => metricTile(key, label, metrics[key], channels)));
-    }
-
-    #renderChannelCards(channels) {
-        get('detail-channels').replaceChildren(...channels.map(channel => this.#channelCard(channel)));
-    }
-
-    #channelCard(channel) {
-        const card = element('article', 'channel-card');
-        card.dataset.channelCard = channel.channel;
-        const head = element('header', 'channel-card-head');
-        head.append(channelMark(channel.channel), element('strong', '', CHANNEL_LABELS[channel.channel]), badge(statusOf(channel)));
-        const { metrics } = channel;
-        const facts = element('p', 'muted', [
-            `${number.format(metrics.completed)} of ${plural(metrics.total - metrics.skipped, 'recipient', 'recipients')} sent`,
-            metrics.failed ? `${number.format(metrics.failed)} failed` : '',
-            metrics.unknown ? `${number.format(metrics.unknown)} to review` : '',
-        ].filter(Boolean).join(' · '));
-        const open = button('View recipients', () => this.showChannel(channel.channel), 'button secondary small', 'chevron-right');
-        card.append(head, facts, open);
-        return card;
-    }
-
     #renderChannelToolbar(channel) {
-        get('channel-toolbar-title').replaceChildren(channelMark(channel.channel), element('strong', '', CHANNEL_LABELS[channel.channel]), badge(statusOf(channel)));
+        get('channel-toolbar-title').replaceChildren(channelHeading(channel, 'channel-toolbar-heading'));
         const signature = JSON.stringify([channel.channel, channel.actions]);
-        if (this.#channelActions.dataset.signature === signature) return;
-        this.#channelActions.dataset.signature = signature;
-        this.#channelActions.replaceChildren(...channelButtons(channel, this.#handlers(), { combined: true }));
+        replaceButtons(this.#channelActions, signature, () => channelButtons(channel, this.#handlers(), { combined: true }));
     }
 
     #renderRecipients(channel) {
@@ -283,41 +202,11 @@ export class CampaignDetails {
     }
 }
 
-function describe(campaign, channels, metrics) {
-    const label = channelList(campaign.channels);
-    if (channels.length === 1) return `${label}, ${plural(channels[0].total, 'recipient', 'recipients')}`;
-    if (metrics.people === null) return `${label}, ${plural(metrics.total, 'recipient', 'recipients')} across channels`;
-    return `${label}, ${plural(metrics.people, 'person', 'people')}`;
-}
-
-function metricTile(key, label, value, channels) {
-    const node = element('div', `detail-count ${key}`);
-    node.dataset.detailMetric = key;
-    if (value === null) {
-        node.append(element('strong', '', '—'), element('span', '', label));
-        node.title = channels.map(channel => `${CHANNEL_LABELS[channel.channel]}: ${number.format(channel.metrics.completed)}`).join(' · ');
-        node.append(element('span', 'muted', `(${node.title})`));
-        return node;
-    }
-    node.append(element('strong', '', number.format(value ?? 0)), element('span', '', label));
-    return node;
-}
-
-function skeletonRecipientRows(count = 6) {
-    return Array.from({ length: Math.min(8, Math.max(3, count)) }, () => {
-        const row = element('tr', 'skeleton-row');
-        row.setAttribute('aria-hidden', 'true');
-        for (const size of ['wide', 'wide', 'pill', 'tiny']) {
-            const cell = element('td');
-            cell.append(element('span', size === 'pill' ? 'skeleton skeleton-pill' : `skeleton skeleton-line ${size}`));
-            row.append(cell);
-        }
-        return row;
-    });
-}
-
-function paginate(current, total) {
-    get('page-number').textContent = `${number.format(current)} / ${number.format(Math.max(1, total))}`;
-    get('previous-page').disabled = current <= 1;
-    get('next-page').disabled = current >= total;
+function replaceButtons(container, signature, build) {
+    if (container.dataset.signature === signature) return;
+    const focused = container.contains(document.activeElement) ? document.activeElement.textContent : '';
+    const buttons = build();
+    container.dataset.signature = signature;
+    container.replaceChildren(...buttons);
+    if (focused) buttons.find(node => node.textContent === focused)?.focus({ preventScroll: true });
 }

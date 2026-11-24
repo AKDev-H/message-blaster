@@ -1,6 +1,7 @@
 import type { Environment } from '../config/env.js';
 import type { CampaignChannel } from '../types/index.js';
 import { cleanScriptHtml, scriptText } from './rich-script.js';
+import { replaceControlCharacters } from '../utils/text.util.js';
 
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const TIMEOUT_MS = 30_000;
@@ -132,8 +133,7 @@ function cleanDraft(draft: RawDraft, channels: readonly CampaignChannel[], varia
 }
 
 function cleanSubject(subject: string, variables: readonly string[]): string {
-    // eslint-disable-next-line no-control-regex -- Subjects are a single header line.
-    return keepKnownVariables(subject, variables).replaceAll(/[\u0000-\u001f\u007f]+/gu, ' ').trim().slice(0, 255);
+    return replaceControlCharacters(keepKnownVariables(subject, variables), ' ').trim().slice(0, 255);
 }
 
 function keepKnownVariables(value: string, variables: readonly string[]): string {
