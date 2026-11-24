@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
+import type { AuthStore, AuthUser } from '../../auth/store.js';
 import type { BaseEnvironment, Environment } from '../../config/env.js';
 import type { WhatsAppLinker } from '../../services/whatsapp/link.js';
 import type { CampaignChannel } from '../../types/index.js';
@@ -12,6 +13,7 @@ export interface App {
     env: BaseEnvironment;
     db: DatabaseSync;
     store: Store;
+    authStore: AuthStore;
     runner: WebRunner;
     whatsapp: WhatsAppLinker;
     updates: LiveUpdates;
@@ -26,12 +28,14 @@ export interface Request {
     params: string[];
     query: URLSearchParams;
     audit: RequestAudit;
+    user: AuthUser;
     sessionActive(): boolean;
 }
 
 export interface Route {
     method: string;
     path: string | RegExp;
+    admin?: boolean;
     handle(request: Request, app: App): void | Promise<void>;
 }
 
