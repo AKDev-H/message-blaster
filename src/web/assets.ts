@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
+import { inlineIcons } from './inline-icons.js';
 
-export type Assets = Map<string, { body: Buffer; type: string }>;
+export type Asset = { body: Buffer; type: string; etag: string };
+export type Assets = Map<string, Asset>;
 export type StatusPage = 'not-found' | 'server-error' | 'maintenance';
 export type StatusPages = Map<StatusPage, Buffer>;
 
@@ -35,9 +38,21 @@ const ASSET_FILES: readonly (readonly [string, string, string])[] = [
 export async function loadAssets(): Promise<Assets> {
     const files = [...ASSET_FILES, ...await webModules(), ...await animations()];
     const entries = await Promise.all(files.map(async ([route, path, type]) => {
-        return [route, { body: await readFile(new URL(path, import.meta.url)), type }] as const;
+        const body = await readWebFile(path);
+        return [route, { body, type, etag: contentTag(body) }] as const;
     }));
     return new Map(entries);
+}
+
+/** HTML gets its icon placeholders rendered to SVG, so icons do not wait for the scripts to load. */
+async function readWebFile(path: string): Promise<Buffer> {
+    const body = await readFile(new URL(path, import.meta.url));
+    return path.endsWith('.html') ? Buffer.from(inlineIcons(body.toString('utf8'))) : body;
+}
+
+/** Changes whenever the file changes, so a redeploy is picked up on the next load. */
+function contentTag(body: Buffer): string {
+    return `"${createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
 }
 
 async function webModules(): Promise<(readonly [string, string, string])[]> {
@@ -52,7 +67,7 @@ async function animations(): Promise<(readonly [string, string, string])[]> {
 
 export async function loadStatusPages(): Promise<StatusPages> {
     const entries = await Promise.all(Object.entries(STATUS_PAGE_FILES).map(async ([name, path]) => {
-        return [name as StatusPage, await readFile(new URL(path, import.meta.url))] as const;
+        return [name as StatusPage, await readWebFile(path)] as const;
     }));
     return new Map(entries);
 }

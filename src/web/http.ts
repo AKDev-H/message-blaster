@@ -12,6 +12,24 @@ export function respond(res: ServerResponse, status: number, body: Buffer | stri
     res.end(body);
 }
 
+/**
+ * Static files are cached by the browser but checked with the server on every load (`no-cache`).
+ * An unchanged file costs an empty 304; a changed file after a redeploy has a new ETag and is sent in full.
+ */
+export function sendAsset(req: IncomingMessage, res: ServerResponse, asset: { body: Buffer; type: string; etag: string }): void {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('ETag', asset.etag);
+    if (matchesTag(req.headers['if-none-match'], asset.etag)) {
+        res.writeHead(304).end();
+        return;
+    }
+    respond(res, 200, asset.body, asset.type);
+}
+
+function matchesTag(header: string | undefined, etag: string): boolean {
+    return Boolean(header) && header!.split(',').some(tag => tag.trim().replace(/^W\//u, '') === etag);
+}
+
 export function json(res: ServerResponse, status: number, data: unknown): void {
     respond(res, status, JSON.stringify(data), 'application/json; charset=utf-8');
 }

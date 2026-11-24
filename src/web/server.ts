@@ -11,7 +11,7 @@ import { WhatsAppLinker } from '../services/whatsapp/link.js';
 import { Store } from '../store/index.js';
 import { loadAssets, loadStatusPages, type Assets, type StatusPage, type StatusPages } from './assets.js';
 import { HttpError, publicError } from './http-error.js';
-import { respond, sendError, sendPage, setSecurityHeaders, validateOrigin } from './http.js';
+import { sendAsset, sendError, sendPage, setSecurityHeaders, validateOrigin } from './http.js';
 import { readCampaignId } from './input/index.js';
 import { LiveUpdates } from './live-updates.js';
 import { WebRunner } from './runner.js';
@@ -114,7 +114,7 @@ async function route(req: IncomingMessage, res: ServerResponse, app: App, site: 
     validateOrigin(req, listener.port, pathname.startsWith('/api/'));
     const asset = site.assets.get(pathname);
     if (app.env.MAINTENANCE_MODE) return underMaintenance(req, res, site, pathname);
-    if (req.method === 'GET' && asset) return respond(res, 200, asset.body, asset.type);
+    if (req.method === 'GET' && asset) return sendAsset(req, res, asset);
     const preview = PAGE_PREVIEWS[pathname];
     if (req.method === 'GET' && preview) return sendPage(res, preview[1], site.pages.get(preview[0])!);
     const match = findRoute(ROUTES, req.method, pathname);
@@ -125,7 +125,7 @@ async function route(req: IncomingMessage, res: ServerResponse, app: App, site: 
 /** While MAINTENANCE_MODE is on, pages show the maintenance screen and the API refuses work; styles and scripts still load. */
 function underMaintenance(req: IncomingMessage, res: ServerResponse, site: Site, pathname: string): void {
     const asset = site.assets.get(pathname);
-    if (req.method === 'GET' && asset && pathname !== '/') return respond(res, 200, asset.body, asset.type);
+    if (req.method === 'GET' && asset && pathname !== '/') return sendAsset(req, res, asset);
     res.setHeader('Retry-After', String(MAINTENANCE_RETRY_SECONDS));
     if (pathname.startsWith('/api/')) return sendError(res, new HttpError(503, 'Message Blaster is down for maintenance. Try again in a few minutes.'));
     sendPage(res, 503, site.pages.get('maintenance')!);
