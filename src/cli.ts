@@ -3,12 +3,12 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 import { CAMPAIGN_ID } from './config/constants.js';
-import { loadEnv, type Environment } from './config/env.js';
+import { loadEnv, type BaseEnvironment, type Environment } from './config/env.js';
 import { openDatabase, backupDatabase } from './database/connection.js';
 import { exportCampaign, importCampaign, prepareRows, summarizeRecipients } from './services/campaign.service.js';
 import { generateExcel } from './services/excel.service.js';
 import { Store } from './services/message.service.js';
-import { withSavedSettings } from './services/settings.service.js';
+import { migrateSettings, withSavedSettings } from './services/settings.service.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel } from './types/index.js';
 import { normalizeEmail } from './utils/email.util.js';
 import { normalizePhone } from './utils/phone.util.js';
@@ -40,7 +40,7 @@ function channelOption() {
     return new Option('--channel <channel>', 'Campaign channel').choices(['whatsapp', 'gmail']).default('whatsapp');
 }
 
-function workbookPath(env: Environment, channel: CampaignChannel) {
+function workbookPath(env: Pick<BaseEnvironment, 'EXCEL_FILE' | 'GMAIL_EXCEL_FILE'>, channel: CampaignChannel) {
     return channel === 'gmail' ? env.GMAIL_EXCEL_FILE : env.EXCEL_FILE;
 }
 
@@ -236,6 +236,7 @@ function liveCommand(command: Command) {
 async function withDb(action: (store: Store, env: Environment, db: DatabaseSync) => void | Promise<void>) {
     const base = loadEnv();
     using db = openDatabase(base.DATABASE_URL);
+    migrateSettings(db, base);
     await action(new Store(db), withSavedSettings(base, db), db);
 }
 

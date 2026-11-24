@@ -46,6 +46,11 @@ async function withAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise
     }
 }
 
+export function whatsappAccountId(jid: string): string | undefined {
+    const normalized = jidNormalizedUser(jid);
+    return normalized ? createHash('sha256').update(normalized).digest('hex') : undefined;
+}
+
 export class WhatsAppService implements MessageTransport {
     private readonly shutdown = new AbortController();
     private auth: ReturnType<typeof openWhatsAppAuth> | undefined;
@@ -167,11 +172,10 @@ export class WhatsAppService implements MessageTransport {
     }
 
     private claimIdentity(jid: string | undefined): void {
-        const normalized = jid && jidNormalizedUser(jid);
-        if (!normalized) {
+        const identity = jid ? whatsappAccountId(jid) : undefined;
+        if (!identity) {
             throw new Error('WhatsApp did not provide a linked account identity.');
         }
-        const identity = createHash('sha256').update(normalized).digest('hex');
         if (this.identity && this.identity !== identity) {
             throw new Error('The linked WhatsApp account changed. Restart and review the account.');
         }

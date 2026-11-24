@@ -284,6 +284,13 @@ export class Store {
         return this.db.prepare(`${campaignSummaryQuery} GROUP BY c.id ORDER BY c.created_at DESC, c.id`).all().map(campaignSummary);
     }
 
+    latestTestCampaign(channel: CampaignChannel): Campaign | undefined {
+        const row = this.db.prepare(`
+            SELECT * FROM campaigns WHERE is_test = 1 AND channel = ? ORDER BY created_at DESC, rowid DESC LIMIT 1
+        `).get(channel);
+        return row ? { ...campaignMetadata(row), accountId: nullableText(row.account_id) } : undefined;
+    }
+
     campaignSummary(id: string): CampaignSummary {
         const row = this.db.prepare(`${campaignSummaryQuery} WHERE c.id = ? GROUP BY c.id`).get(id);
         if (!row) throw new Error(`Campaign "${id}" does not exist`);
@@ -434,6 +441,10 @@ export class Store {
             }
             this.db.prepare('UPDATE campaigns SET account_id = ? WHERE id = ?').run(accountId, id);
         });
+    }
+
+    isConfirmedTestCampaign(id: string): boolean {
+        return Boolean(this.db.prepare('SELECT 1 FROM confirmed_test WHERE campaign_id = ?').get(id));
     }
 
     hasConfirmedTest(accountId: string): boolean {

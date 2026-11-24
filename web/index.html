@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
     <title>Campaigns | Message Blaster</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
     <link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/style.css">
@@ -16,7 +18,7 @@
     <header class="topbar">
         <div class="topbar-inner">
             <a class="brand" href="/" aria-label="Message Blaster home">
-                <span class="brand-mark"><i data-icon="send" data-size="15"></i></span>
+                <span class="brand-mark"><i data-icon="megaphone" data-size="15"></i></span>
                 <span class="brand-name">Message Blaster</span>
             </a>
             <nav class="topnav" aria-label="Workspace">
@@ -346,6 +348,7 @@
                 </div>
                 <p class="settings-success" id="gmail-status" role="status" hidden><i data-icon="shield-check" data-size="15"></i>Gmail accepted these details.</p>
                 <p class="inline-error" id="gmail-error" role="alert" hidden></p>
+                <section class="test-send" id="gmail-test" aria-label="Gmail test send"></section>
             </div>
             <footer class="dialog-footer">
                 <button type="button" class="button secondary" id="gmail-verify"><i data-icon="plug"></i><span>Check connection</span></button>
@@ -364,6 +367,7 @@
                     <p class="viewer-loading" id="whatsapp-qr-wait">Getting a code…</p>
                 </div>
                 <p class="inline-error" id="whatsapp-error" role="alert" hidden></p>
+                <section class="test-send" id="whatsapp-test" aria-label="WhatsApp test send" hidden></section>
             </div>
             <footer class="dialog-footer">
                 <button type="button" class="button quiet-danger" id="whatsapp-unlink" hidden><i data-icon="unlink"></i><span>Unlink</span></button>

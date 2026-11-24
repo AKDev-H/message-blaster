@@ -1,3 +1,4 @@
+import { createTestSend } from './test-send.mjs';
 import { formFeedback, get, request, setError, toast } from './ui.mjs';
 
 const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
@@ -15,6 +16,10 @@ export function createSettings() {
     const regionNames = new Intl.DisplayNames(undefined, { type: 'region' });
     let current = null;
     let pollTimer = 0;
+    const tests = {
+        gmail: createTestSend(get('gmail-test'), 'gmail', settings => render(settings, { forms: false })),
+        whatsapp: createTestSend(get('whatsapp-test'), 'whatsapp', settings => render(settings, { forms: false })),
+    };
 
     function selectTab(name) {
         for (const tab of tabs) {
@@ -57,29 +62,44 @@ export function createSettings() {
         get('whatsapp-cancel').hidden = status !== 'pairing';
         get('whatsapp-unlink').hidden = status !== 'linked' && status !== 'loggedOut';
         setError('whatsapp-error', error ?? '');
-
-        window.clearTimeout(pollTimer);
-        if (status === 'pairing' && dialog.open) pollTimer = window.setTimeout(refresh, pollMs);
     }
 
-    function render(settings) {
+    function render(settings, { forms = true } = {}) {
         current = settings;
+        if (forms) renderForms(settings);
+        renderWhatsApp(settings.whatsapp);
+
+        const linked = settings.whatsapp.status === 'linked';
+        get('whatsapp-test').hidden = !linked;
+        const testing = [
+            tests.gmail.render({ dryRun: settings.dryRun, test: settings.gmail.test, fallbackRecipient: settings.gmail.user }),
+            linked && tests.whatsapp.render({ dryRun: settings.dryRun, test: settings.whatsapp.test }),
+        ].some(Boolean);
+        window.clearTimeout(pollTimer);
+        if ((testing || settings.whatsapp.status === 'pairing') && dialog.open) pollTimer = window.setTimeout(poll, pollMs);
+    }
+
+    function renderForms(settings) {
         gmail.gmailUser.value = settings.gmail.user;
         gmail.gmailPassword.value = '';
         gmail.gmailPassword.placeholder = settings.gmail.passwordSet ? 'Saved. Leave blank to keep it.' : '16-character App Password';
+        get('gmail-password-help').textContent = settings.gmail.passwordUnreadable
+            ? 'The saved App Password can’t be read on this computer. Enter it again.'
+            : 'Requires 2-Step Verification on the Google account. Saved encrypted.';
         get('gmail-verify').disabled = !settings.gmail.user || !settings.gmail.passwordSet;
         renderCountries(settings.countries, settings.sending.country);
         sending.delay.value = String(settings.sending.delaySeconds);
-        renderWhatsApp(settings.whatsapp);
     }
 
-    async function refresh() {
+    async function refresh(options) {
         try {
-            render(await request('/api/settings'));
+            render(await request('/api/settings'), options);
         } catch (error) {
             setError('settings-error', error);
         }
     }
+
+    const poll = () => refresh({ forms: false });
 
     async function submit(button, action) {
         if (button.disabled) return;
@@ -185,6 +205,7 @@ export function createSettings() {
             gmailFeedback.clear();
             sendingFeedback.clear();
             get('gmail-status').hidden = true;
+            for (const test of Object.values(tests)) test.reset();
             selectTab(tab);
             dialog.showModal();
             refresh();

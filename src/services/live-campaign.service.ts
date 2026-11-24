@@ -60,7 +60,7 @@ export async function runLiveCampaign(
             throw new Error(`Campaign is bound to a different ${label} account.`);
         }
         if (!campaign.isTest && !store.hasConfirmedTest(accountId)) {
-            throw new Error(`Run ${campaign.channel}:test and ${campaign.channel}:confirm-test for this sender account before starting a campaign.`);
+            throw new Error(`Send and confirm a test in Settings › ${label} before starting a campaign (or run ${campaign.channel}:test and ${campaign.channel}:confirm-test).`);
         }
         return accountId;
     }

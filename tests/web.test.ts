@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
+import { setTimeout } from 'node:timers/promises';
 import ExcelJS from 'exceljs';
-import { loadEnv } from '../src/config/env.js';
+import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { Store } from '../src/services/message.service.js';
+import { saveSettings } from '../src/services/settings.service.js';
 import { startWebServer } from '../src/web/server.js';
 
 interface CampaignProgress {
@@ -84,9 +86,11 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     process.env.NODE_OPTIONS = [originalNodeOptions, importMock].filter(Boolean).join(' ');
     const env = {
         ...loadEnv(),
+        ...DEFAULT_SETTINGS,
         DATABASE_URL: join(directory, 'dashboard.db'),
         ATTACHMENTS_DIR: join(directory, 'pdf'),
         LOG_DIR: join(directory, 'logs'),
+        SECRET_KEY_FILE: join(directory, 'secret.key'),
         GMAIL_USER: 'sender@example.com',
         GMAIL_APP_PASSWORD: 'abcdefghijklmnop',
         DRY_RUN: false,
@@ -96,6 +100,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     };
     {
         using db = openDatabase(env.DATABASE_URL);
+        saveSettings(db, env, { GMAIL_USER: env.GMAIL_USER, GMAIL_APP_PASSWORD: env.GMAIL_APP_PASSWORD, MESSAGE_DELAY_MS: env.MESSAGE_DELAY_MS });
         const store = new Store(db);
         store.importCampaign('test-setup', [{
             rowNumber: 1, clientName: 'Test', phone: '', email: 'test@example.com',
@@ -260,9 +265,36 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     const badGmail = await put('/api/settings/gmail', { user: 'sender@gmail.com', password: 'short' });
     assert.equal((await badGmail.json()).field, 'gmailPassword');
     const savedGmail = await (await put('/api/settings/gmail', { user: 'Sender@Gmail.com', password: 'abcd efgh ijkl mnop' })).json();
-    assert.deepEqual(savedGmail.gmail, { user: 'sender@gmail.com', passwordSet: true });
+    assert.equal(savedGmail.gmail.user, 'sender@gmail.com');
+    assert.equal(savedGmail.gmail.passwordSet, true);
+    assert.equal(savedGmail.gmail.test.account, 'gmail:sender@gmail.com');
     assert.doesNotMatch(JSON.stringify(savedGmail), /abcdefghijklmnop/u);
-    assert.equal((await put('/api/settings/gmail', { user: 'other@gmail.com', password: '' })).status, 200);
+    {
+        using db = openDatabase(env.DATABASE_URL);
+        const stored = String(db.prepare("SELECT value FROM settings WHERE key = 'GMAIL_APP_PASSWORD'").get()?.value);
+        assert.match(stored, /^enc:v1:/u);
+        assert.doesNotMatch(stored, /abcdefghijklmnop/u);
+    }
+    const other = await (await put('/api/settings/gmail', { user: 'other@gmail.com', password: '' })).json();
+    assert.equal(other.gmail.test.confirmed, false, 'a new sender address needs its own confirmed test');
+
+    const post = (path: string, body: unknown = {}) => request(path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    assert.equal((await (await post('/api/settings/gmail/test', { recipient: '' })).json()).field, 'testRecipient');
+    assert.equal((await post('/api/settings/gmail/test/confirm')).status, 409, 'the latest test belongs to another sender');
+    assert.equal((await post('/api/settings/gmail/test', { recipient: 'me@example.com' })).status, 200);
+    let tested = await (await request('/api/settings')).json();
+    for (let attempt = 0; tested.gmail.test.latest.phase === 'sending' && attempt < 100; attempt++) {
+        await setTimeout(100);
+        tested = await (await request('/api/settings')).json();
+    }
+    assert.equal(tested.gmail.test.latest.phase, 'sent', tested.gmail.test.latest.error);
+    assert.equal(tested.gmail.test.latest.recipient, 'me@example.com');
+    const confirmed = await (await post('/api/settings/gmail/test/confirm')).json();
+    assert.equal(confirmed.gmail.test.confirmed, true);
+    assert.ok(!(await (await request('/api/campaigns')).json()).campaigns.some((campaign: { isTest: boolean }) => campaign.isTest),
+        'test sends stay out of the campaign list');
     const sending = await (await put('/api/settings/sending', { country: 'sg', delaySeconds: 2.5 })).json();
     assert.deepEqual(sending.sending, { country: 'SG', delaySeconds: 2.5 });
     assert.equal(sending.whatsapp.status, 'unlinked');

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
-import type { Environment } from '../config/env.js';
+import { DEFAULT_SETTINGS, type Environment } from '../config/env.js';
 import { recoverInterruptedCampaigns, validateDeliveryApproval, type RunMode } from '../services/live-campaign.service.js';
 import type { Campaign, Store } from '../services/message.service.js';
 import { HttpError } from './input.js';
@@ -37,16 +37,25 @@ export class WebRunner {
         return this.#active?.campaign.id === id;
     }
 
-    launch(id: string, mode: RunMode, approve: unknown) {
+    status(id: string): { active: boolean; error?: string } {
+        const error = this.#lastFailure?.id === id ? this.#lastFailure.message : undefined;
+        return { active: this.isActive(id), ...(error ? { error } : {}) };
+    }
+
+    ensureIdle() {
         if (this.#closed) throw new HttpError(503, 'The dashboard is shutting down.');
-        if (this.#active) throw new HttpError(409, `Campaign ${this.#active.campaign.id} already has an active worker.`);
+        if (this.#active) throw new HttpError(409, `Campaign ${this.#active.campaign.id} is sending. Wait for it to finish or pause it first.`);
+    }
+
+    launch(id: string, mode: RunMode, approve: unknown) {
+        this.ensureIdle();
         try {
             validateDeliveryApproval(this.settings(), id, { live: true, ...(typeof approve === 'string' ? { approve } : {}) });
         } catch (error) {
             throw new HttpError(409, error instanceof Error ? error.message : 'The live run requires approval.');
         }
         const campaign = this.store.getCampaign(id);
-        if (mode === 'start' && campaign.isTest) throw new HttpError(409, 'Send test campaigns with the CLI test command.');
+        if (campaign.isTest && mode !== 'start') throw new HttpError(409, 'Send a new test from Settings instead.');
         if (mode === 'start' ? campaign.state !== 'Ready' : !['Paused', 'Failed'].includes(campaign.state)) {
             throw new HttpError(409, `Cannot ${mode} campaign ${id} from state ${campaign.state}.`);
         }
@@ -54,9 +63,10 @@ export class WebRunner {
         if (!queued) throw new HttpError(409, 'The campaign has no queued recipients.');
 
         const entry = fileURLToPath(new URL('../index.ts', import.meta.url));
-        const child = spawn(process.execPath, ['--import', 'tsx', entry, `campaign:${mode}`, id, '--live', '--approve', id], {
+        const command = campaign.isTest ? `${campaign.channel}:test` : `campaign:${mode}`;
+        const child = spawn(process.execPath, ['--import', 'tsx', entry, command, id, '--live', '--approve', id], {
             stdio: ['ignore', 'ignore', 'pipe'],
-            env: { ...process.env, ...Object.fromEntries(Object.entries(this.settings()).map(([key, value]) => [key, String(value)])) },
+            env: this.workerEnvironment(),
         });
         let stderr = '';
         let spawnError = false;
@@ -90,6 +100,11 @@ export class WebRunner {
         if (!active) return;
         this.stopChild(active.campaign.id, 'Pausing');
         await active.finished;
+    }
+
+    private workerEnvironment(): NodeJS.ProcessEnv {
+        const entries = [...Object.entries(process.env), ...Object.entries(this.settings()).map(([key, value]) => [key, String(value)])];
+        return Object.fromEntries(entries.filter(([key]) => !Object.hasOwn(DEFAULT_SETTINGS, key!)));
     }
 
     private async finish(id: string, code: number | null, message: string) {

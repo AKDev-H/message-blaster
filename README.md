@@ -36,7 +36,7 @@ npm run web       # dashboard at http://127.0.0.1:3000
 Live sending requires all of the following:
 
 1. `DRY_RUN=false` in `.env`
-2. A test message sent to yourself and confirmed as received for that sender account
+2. A test sent to yourself and confirmed as received for that sender account (**Settings › Gmail** or **Settings › WhatsApp** › *Test send*)
 3. `--live --approve <campaign-id>` on the CLI, or typing the campaign ID in the dashboard
 
 Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withdrawn recipients are skipped and reported.
@@ -48,7 +48,7 @@ Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withd
 3. **Import and preview**: check the rendered messages and skipped rows.
 4. **Start**: enter the campaign ID to approve it. Pause, cancel, retry and review from the queue.
 
-**Settings** holds Gmail credentials, WhatsApp QR linking and send pacing. Saved settings override `.env` for both the dashboard and the CLI. Keep the dashboard running while a campaign sends.
+**Settings** holds Gmail credentials (the App Password is stored encrypted), WhatsApp QR linking, send pacing and the **Test send** that unlocks campaigns for each sender account. The dashboard and the CLI both read them. Keep the dashboard running while a campaign sends.
 
 Attachments are any common format up to 10 MB (executables and scripts are refused). Upload them in **Attachments** and reference them by filename in the workbook.
 
@@ -72,7 +72,8 @@ Placeholders: `{{client_name}}`, `{{email_address}}`, `{{phone_number}}`, `{{cam
 ### Connect and test
 
 ```bash
-# Gmail: set GMAIL_USER and GMAIL_APP_PASSWORD in .env first
+# Usually done in Settings › Test send. CLI equivalent:
+# Gmail: save the sender in Settings › Gmail first
 npm run gmail:test -- gmail-test --email you@example.com --consent
 npm run gmail:test -- gmail-test --live --approve gmail-test
 npm run gmail:confirm-test -- gmail-test --received
@@ -138,19 +139,19 @@ Message statuses:
 
 ## Configuration
 
-See `.env.example`. Key variables:
+**In the dashboard (Settings):** Gmail sender and [App Password](https://support.google.com/accounts/answer/185833), WhatsApp link, the country for local phone numbers, the pause between messages, and the test send. The App Password is encrypted (AES-256-GCM) with a key kept outside the project at `~/.config/message-blaster/secret.key`. Back that file up with the database; without it the saved password must be entered again. Values still left in an old `.env` are imported once on start.
+
+**In `.env`** (see `.env.example`):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DRY_RUN` | `true` | Blocks live delivery |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | — | Gmail SMTP credentials ([App Passwords](https://support.google.com/accounts/answer/185833)) |
+| `WEB_PORT` | `3000` | Dashboard port |
 | `GROQ_API_KEY` / `GROQ_MODEL` | — / `openai/gpt-oss-120b` | AI drafting (hidden when no key is set) |
-| `DEFAULT_COUNTRY` | `MY` | Region for local phone numbers |
 | `MAX_MESSAGES_PER_RUN` | `100` | Attempts per run, including retries |
-| `MESSAGE_DELAY_MS` | `10000` | Spacing between sends |
 | `SENDER_CONCURRENCY` | `1` | Parallel sends |
 | `MAX_RETRY_ATTEMPTS` / `RETRY_DELAY_MS` | `3` / `5000` | Safe retries with backoff |
-| `WEB_PORT` | `3000` | Dashboard port |
+| `SECRET_KEY_FILE` | `~/.config/message-blaster/secret.key` | Encryption key for saved secrets |
 | `DATABASE_URL`, `ATTACHMENTS_DIR`, `AUTH_DIR`, `LOG_DIR` | `./storage/...`, `./auth`, `./logs` | Local storage paths |
 
 ## Development

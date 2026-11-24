@@ -3,8 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
-import { getCountries } from 'libphonenumber-js';
-import type { Environment } from '../config/env.js';
+import type { BaseEnvironment } from '../config/env.js';
 import { openDatabase } from '../database/connection.js';
 import { AiError, generateDraft } from '../services/ai.service.js';
 import { attachmentMimeType, readAttachment } from '../services/attachment.service.js';
@@ -12,23 +11,28 @@ import { exportCampaignWorkbook } from '../services/campaign.service.js';
 import { createExcelTemplate } from '../services/excel.service.js';
 import { recoverInterruptedCampaigns } from '../services/live-campaign.service.js';
 import { Store } from '../services/message.service.js';
-import { saveSettings, withSavedSettings } from '../services/settings.service.js';
+import { SecretError } from '../services/secret.service.js';
+import { migrateSettings, withSavedSettings } from '../services/settings.service.js';
 import { WhatsAppLinker } from '../services/whatsapp-link.service.js';
 import type { CampaignChannel } from '../types/index.js';
 import {
     campaignTargets, HttpError, listAttachments, previewDraft, readCampaignId, readChannel, readChannels, readDraft, readDraftRequest,
-    readForm, readGmailSettings, readJson, readSendingSettings, storeAttachment,
+    readForm, readJson, storeAttachment,
 } from './input.js';
 import { WebRunner } from './runner.js';
+import { createSettingsRoutes } from './settings-routes.js';
 
 const excelType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const scriptType = 'text/javascript; charset=utf-8';
 const fontType = 'font/woff2';
+const svgType = 'image/svg+xml';
 const fonts = '../../node_modules/@fontsource-variable';
 const assetPaths: readonly (readonly [string, string, string])[] = [
     ['/', '../../web/index.html', 'text/html; charset=utf-8'],
     ['/style.css', '../../web/style.css', 'text/css; charset=utf-8'],
-    ...['app', 'brands', 'campaigns', 'compose', 'confirm', 'editor', 'icons', 'recipients', 'settings', 'ui', 'viewer'].map(name => [`/${name}.mjs`, `../../web/${name}.mjs`, scriptType] as const),
+    ['/favicon.svg', '../../web/favicon.svg', svgType],
+    ['/favicon.ico', '../../web/favicon.svg', svgType],
+    ...['app', 'brands', 'campaigns', 'compose', 'confirm', 'editor', 'icons', 'recipients', 'settings', 'test-send', 'ui', 'viewer'].map(name => [`/${name}.mjs`, `../../web/${name}.mjs`, scriptType] as const),
     ['/vendor/lucide.js', '../../node_modules/lucide/dist/umd/lucide.min.js', scriptType],
     ['/vendor/mammoth.js', '../../node_modules/mammoth/mammoth.browser.min.js', scriptType],
     ['/vendor/exceljs.js', '../../node_modules/exceljs/dist/exceljs.min.js', scriptType],
@@ -54,6 +58,7 @@ function workbookResponse(res: ServerResponse, data: Buffer, name: string) {
 function publicError(error: unknown): HttpError {
     if (error instanceof HttpError) return error;
     if (error instanceof AiError) return new HttpError(502, error.message);
+    if (error instanceof SecretError) return new HttpError(500, error.message);
     if (error instanceof Error && !('code' in error)) {
         if (/does not exist/i.test(error.message)) return new HttpError(404, error.message);
         if (/already exists$/u.test(error.message)) return new HttpError(409, 'A campaign already uses this name.', 'id');
@@ -92,13 +97,14 @@ function validateOrigin(req: IncomingMessage, port: number, protectsData: boolea
     }
 }
 
-export async function startWebServer(env: Environment, requestedPort = env.WEB_PORT) {
+export async function startWebServer(env: BaseEnvironment, requestedPort = env.WEB_PORT) {
     const assets = new Map<string, { body: Buffer; type: string }>(await Promise.all(assetPaths.map(async ([route, path, type]) => [
         route, { body: await readFile(new URL(path, import.meta.url)), type },
     ] as const)));
     const templates = new Map<CampaignChannel | 'both', Promise<Buffer>>();
     const db = openDatabase(env.DATABASE_URL);
     try {
+        migrateSettings(db, env);
         await recoverInterruptedCampaigns(new Store(db), env.DATABASE_URL);
     } catch (error) {
         if (!(error instanceof Error) || !error.message.startsWith('Another live campaign')) {
@@ -128,19 +134,11 @@ export async function startWebServer(env: Environment, requestedPort = env.WEB_P
     const settings = () => withSavedSettings(env, db);
     const runner = new WebRunner(store, settings, changed);
     const whatsapp = new WhatsAppLinker(env, () => {});
-
-    function publicSettings() {
-        const current = settings();
-        return {
-            gmail: { user: current.GMAIL_USER, passwordSet: Boolean(current.GMAIL_APP_PASSWORD) },
-            whatsapp: whatsapp.state(),
-            sending: { country: current.DEFAULT_COUNTRY, delaySeconds: current.MESSAGE_DELAY_MS / 1_000 },
-            countries: getCountries(),
-        };
-    }
+    const settingsRoutes = createSettingsRoutes({ env, db, store, runner, whatsapp, changed });
 
     function snapshot() {
-        return { dryRun: env.DRY_RUN, ai: Boolean(env.GROQ_API_KEY), revision, campaigns: store.listCampaignSummaries().map(campaign => runner.decorate(campaign)) };
+        const campaigns = store.listCampaignSummaries().filter(campaign => !campaign.isTest).map(campaign => runner.decorate(campaign));
+        return { dryRun: env.DRY_RUN, ai: Boolean(env.GROQ_API_KEY), revision, campaigns };
     }
 
     function changed() {
@@ -252,40 +250,8 @@ export async function startWebServer(env: Environment, requestedPort = env.WEB_P
             });
             return attachmentResponse(res, file.name, file.data, searchParams.has('download'));
         }
-        if (pathname === '/api/settings' && method === 'GET') return json(res, 200, publicSettings());
-        if (pathname === '/api/settings/gmail' && method === 'PUT') {
-            saveSettings(db, readGmailSettings(await readJson(req), Boolean(settings().GMAIL_APP_PASSWORD)));
-            return json(res, 200, publicSettings());
-        }
-        if (pathname === '/api/settings/gmail/verify' && method === 'POST') {
-            const { GmailService } = await import('../services/gmail.service.js');
-            try {
-                await new GmailService(settings()).connect();
-            } catch (error) {
-                throw new HttpError(502, error instanceof Error ? error.message : 'Could not connect to Gmail.');
-            }
-            return json(res, 200, { ok: true });
-        }
-        if (pathname === '/api/settings/sending' && method === 'PUT') {
-            saveSettings(db, readSendingSettings(await readJson(req)));
-            return json(res, 200, publicSettings());
-        }
-        if (pathname === '/api/settings/whatsapp/link' && (method === 'POST' || method === 'DELETE')) {
-            try {
-                await (method === 'POST' ? whatsapp.start() : whatsapp.cancel());
-            } catch (error) {
-                throw new HttpError(409, error instanceof Error ? error.message : 'Could not link WhatsApp.');
-            }
-            return json(res, 200, publicSettings());
-        }
-        if (pathname === '/api/settings/whatsapp/unlink' && method === 'POST') {
-            try {
-                await whatsapp.unlink();
-            } catch (error) {
-                throw new HttpError(409, error instanceof Error ? error.message : 'Could not unlink WhatsApp.');
-            }
-            return json(res, 200, publicSettings());
-        }
+        const settingsBody = await settingsRoutes.handle(pathname, method, req);
+        if (settingsBody !== undefined) return json(res, 200, settingsBody);
         if (pathname === '/api/attachments' && method === 'POST') {
             const name = await storeAttachment(env.ATTACHMENTS_DIR, await readForm(req));
             return json(res, 201, { name });

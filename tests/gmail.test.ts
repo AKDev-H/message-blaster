@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import nodemailer, { type SendMailOptions } from 'nodemailer';
-import { loadEnv } from '../src/config/env.js';
+import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { initialMigration } from '../src/database/migrations/001-initial.js';
 import { exportCampaign, importCampaign } from '../src/services/campaign.service.js';
@@ -34,6 +34,7 @@ test('Gmail import and approved SMTP runs share the campaign queue and track acc
 
     const env = {
         ...loadEnv(),
+        ...DEFAULT_SETTINGS,
         DATABASE_URL: join(dir, 'test.db'),
         LOG_DIR: dir,
         ATTACHMENTS_DIR: 'tests/fixtures',

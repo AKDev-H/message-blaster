@@ -18,7 +18,7 @@ const maxFileBytes = 10 * 1024 * 1024;
 const maxMultipartBytes = maxFileBytes + 256 * 1024;
 
 export type DraftField = 'id' | 'channel' | 'workbook' | 'recipients' | 'subject' | 'script' | 'attachment'
-    | 'gmailUser' | 'gmailPassword' | 'country' | 'delay';
+    | 'gmailUser' | 'gmailPassword' | 'country' | 'delay' | 'testRecipient';
 
 export class HttpError extends Error {
     constructor(readonly status: number, message: string, readonly field?: DraftField) {
@@ -102,6 +102,14 @@ export function readSendingSettings(body: Record<string, unknown>): Partial<Edit
         throw new HttpError(400, 'Use 0–3,600 seconds.', 'delay');
     }
     return { DEFAULT_COUNTRY: country, MESSAGE_DELAY_MS: Math.round(seconds * 1_000) };
+}
+
+export function readTestRecipient(body: Record<string, unknown>, channel: CampaignChannel): string {
+    const recipient = typeof body.recipient === 'string' ? body.recipient.trim() : '';
+    if (!recipient || recipient.length > 320) {
+        throw new HttpError(400, channel === 'gmail' ? 'Enter the email address to send the test to.' : 'Enter the phone number to send the test to.', 'testRecipient');
+    }
+    return recipient;
 }
 
 export function readDraftRequest(body: Record<string, unknown>): DraftRequest {

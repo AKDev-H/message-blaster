@@ -504,6 +504,21 @@ button.file-pill:hover { background: var(--harbor-wash); color: var(--harbor-dee
 .dialog-header, .dialog-footer { display: flex; gap: 8px; padding: 10px 16px; }
 .dialog-header { align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line-soft); }
 .dialog-header p { margin-top: 2px; }
+.confirm-token {
+    padding: 1px 6px;
+    border: 1px solid #e3c98f;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--ochre-wash);
+    color: var(--ink);
+    font-size: .82em;
+    font-weight: 650;
+    user-select: all;
+    overflow-wrap: anywhere;
+    transition: background-color var(--fast), border-color var(--fast), color var(--fast);
+}
+
+.confirm-token.matched { border-color: #a9cdb2; background: var(--sage-wash); color: var(--sage); }
 .dialog-footer { justify-content: flex-end; border-top: 1px solid var(--line-soft); background: var(--sunken); }
 .dialog-body { min-height: 0; overflow: auto; padding: 14px 16px 16px; }
 .dialog-body .inline-error { margin-top: 10px; }
@@ -873,6 +888,47 @@ button.text-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .input-suffix { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .input-suffix input { max-width: 120px; }
 
+.test-send { display: grid; gap: 6px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.test-send[hidden] { display: none; }
+.test-send-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.test-send-head strong { font-weight: 650; }
+.test-badge { padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 650; letter-spacing: .02em; }
+.test-badge[data-state="required"] { background: var(--ochre-wash); color: var(--ochre); }
+.test-badge[data-state="confirmed"] { background: var(--sage-wash); color: var(--sage); }
+.test-send-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.test-send-row input {
+    min-width: 0;
+    min-height: var(--control);
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.test-send-row input:hover { border-color: #c5d0cd; }
+.test-send-row input:focus { border-color: var(--harbor); box-shadow: 0 0 0 3px var(--harbor-wash); outline: none; }
+.test-send-row input:disabled { background: var(--sunken); color: var(--muted); cursor: not-allowed; }
+.test-send-row input[aria-invalid="true"] { border-color: var(--rust); }
+.test-send-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: var(--radius-small); background: var(--harbor-wash); }
+.test-send-result[hidden] { display: none; }
+.test-send-result[data-phase="failed"] { background: var(--rust-wash); color: var(--rust); }
+.test-send-status { font-size: .82rem; font-weight: 520; overflow-wrap: anywhere; }
+.test-send-result[data-phase="sending"] .test-send-status::before {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 7px;
+    border: 2px solid currentcolor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    content: "";
+    vertical-align: -1px;
+    animation: spin .8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .whatsapp-status { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
 .whatsapp-status .channel-icon { width: 40px; height: 40px; border-radius: 10px; }
 .whatsapp-status strong { font-family: var(--display); font-size: 1.02rem; font-stretch: 88%; font-weight: 660; }
@@ -886,7 +942,8 @@ button.text-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .icon path { transform-box: fill-box; }
 :is(button, a, label):hover > .icon-plus { animation: spin-quarter .35s var(--spring); }
 :is(button, a, label):hover > .icon-x { animation: spin-quarter .3s var(--ease); }
-:is(button, a, label):hover > .icon-send, .brand:hover .icon-send { animation: fly .55s var(--ease); }
+:is(button, a, label):hover > .icon-send { animation: fly .55s var(--ease); }
+.brand:hover .icon-megaphone { animation: wobble .5s ease-in-out; }
 :is(button, a, label):hover > .icon-upload path:not(:last-child) { animation: lift .6s var(--ease); }
 :is(button, a, label):hover > .icon-download path:not(:nth-child(2)) { animation: drop .6s var(--ease); }
 :is(button, a, label):hover > .icon-trash-2 path:nth-child(n+4) { transform-origin: 20% 100%; animation: lid .5s var(--ease) both; }

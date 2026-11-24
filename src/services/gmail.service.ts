@@ -14,7 +14,7 @@ export class GmailService implements MessageTransport {
     constructor(env: Pick<Environment, 'GMAIL_USER' | 'GMAIL_APP_PASSWORD'>) {
         const pass = env.GMAIL_APP_PASSWORD.replace(/\s/g, '');
         if (!env.GMAIL_USER.trim() || !pass) {
-            throw new Error('Set GMAIL_USER and GMAIL_APP_PASSWORD in .env for live Gmail delivery.');
+            throw new Error('Add your Gmail address and App Password in Settings › Gmail.');
         }
         this.#address = normalizeEmail(env.GMAIL_USER);
         if (!/^[a-z0-9]{16}$/i.test(pass)) throw new Error('GMAIL_APP_PASSWORD must be a 16-character Google App Password.');
@@ -42,7 +42,7 @@ export class GmailService implements MessageTransport {
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'EAUTH') {
                 // eslint-disable-next-line preserve-caught-error -- SMTP authentication errors may carry account details.
-                throw new Error('Gmail rejected SMTP authentication. Check GMAIL_USER and GMAIL_APP_PASSWORD.');
+                throw new Error('Gmail rejected the sign-in. Check the address and App Password in Settings › Gmail.');
             }
             // eslint-disable-next-line preserve-caught-error -- Keep raw SMTP responses out of the surfaced error.
             throw new Error('Could not verify Gmail SMTP on smtp.gmail.com port 465.');

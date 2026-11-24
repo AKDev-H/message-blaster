@@ -1,8 +1,15 @@
-const settingsWith = whatsapp => ({
-    gmail: { user: '', passwordSet: false },
-    whatsapp,
+const noTest = { account: null, confirmed: false, latest: null };
+const settingsWith = (whatsapp, { gmail = {}, dryRun = true } = {}) => ({
+    dryRun,
+    gmail: { user: '', passwordSet: false, passwordUnreadable: false, test: noTest, ...gmail },
+    whatsapp: { test: noTest, ...whatsapp },
     sending: { country: 'MY', delaySeconds: 10 },
     countries: ['MY', 'SG'],
+});
+const sentTest = (phase, extra = {}) => ({
+    account: 'gmail:sender@gmail.com',
+    confirmed: false,
+    latest: { id: 'gmail-test-1', recipient: 'me@example.com', phase, confirmed: false, current: true, ...extra },
 });
 const qr = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxIDEiPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48L3N2Zz4=';
 
@@ -27,7 +34,7 @@ describe('Settings', () => {
         cy.get('#gmail-password').clear().type('abcd efgh ijkl mnop');
         cy.get('#gmail-save').click();
         cy.wait('@save').its('response.body').should(body => {
-            expect(body.gmail).to.deep.equal({ user: 'sender@gmail.com', passwordSet: true });
+            expect(body.gmail).to.include({ user: 'sender@gmail.com', passwordSet: true, passwordUnreadable: false });
             expect(JSON.stringify(body)).not.to.contain('abcdefghijklmnop');
         });
         cy.contains('#toast', 'Gmail settings saved');
@@ -39,7 +46,7 @@ describe('Settings', () => {
         cy.get('#gmail-user').clear().type('team@gmail.com');
         cy.get('#gmail-save').click();
         cy.contains('#toast', 'Gmail settings saved');
-        cy.request('/api/settings').its('body.gmail').should('deep.equal', { user: 'team@gmail.com', passwordSet: true });
+        cy.request('/api/settings').its('body.gmail').should('include', { user: 'team@gmail.com', passwordSet: true });
     });
 
     it('checks the Gmail connection and reports failures', () => {
@@ -49,9 +56,9 @@ describe('Settings', () => {
         cy.get('#gmail-save').click();
         cy.get('#gmail-verify').should('not.be.disabled');
 
-        cy.intercept('POST', '/api/settings/gmail/verify', { statusCode: 502, body: { error: 'Gmail rejected SMTP authentication. Check GMAIL_USER and GMAIL_APP_PASSWORD.' } });
+        cy.intercept('POST', '/api/settings/gmail/verify', { statusCode: 502, body: { error: 'Gmail rejected the sign-in. Check the address and App Password in Settings › Gmail.' } });
         cy.get('#gmail-verify').click();
-        cy.get('#gmail-error').should('contain', 'Gmail rejected SMTP authentication');
+        cy.get('#gmail-error').should('contain', 'Gmail rejected the sign-in');
 
         cy.intercept('POST', '/api/settings/gmail/verify', { body: { ok: true } });
         cy.get('#gmail-verify').click();
@@ -135,4 +142,71 @@ describe('Settings', () => {
         cy.get('#tab-whatsapp').type('{rightArrow}');
         cy.get('#tab-sending').should('have.attr', 'aria-selected', 'true');
     });
+
+    it('keeps the test send locked until Gmail is saved and live sending is on', () => {
+        cy.get('#gmail-test .test-badge').should('have.text', 'Required');
+        cy.get('#gmail-test').should('contain', 'Save your Gmail address and App Password first.');
+        cy.get('#gmail-test input').should('be.disabled');
+
+        cy.get('#gmail-user').type('sender@gmail.com');
+        cy.get('#gmail-password').type('abcdefghijklmnop');
+        cy.get('#gmail-save').click();
+        cy.get('#gmail-test').should('contain', 'Live sending is off');
+        cy.get('#gmail-test input').should('be.disabled').and('have.value', 'sender@gmail.com');
+        cy.get('#gmail-password-help').should('contain', 'Saved encrypted');
+    });
+
+    it('sends a test, waits for it and confirms receipt', () => {
+        const live = { gmail: { user: 'sender@gmail.com', passwordSet: true, test: { ...noTest, account: 'gmail:sender@gmail.com' } }, dryRun: false };
+        cy.intercept('GET', '/api/settings', settingsWith({ status: 'unlinked' }, live)).as('initial');
+        cy.get('#settings [data-close]').click();
+        cy.get('#open-settings').click();
+        cy.wait('@initial');
+
+        cy.intercept('POST', '/api/settings/gmail/test', req => {
+            expect(req.body).to.deep.equal({ recipient: 'me@example.com' });
+            req.reply(settingsWith({ status: 'unlinked' }, { ...live, gmail: { ...live.gmail, test: sentTest('sending') } }));
+        });
+        cy.intercept('GET', '/api/settings', settingsWith({ status: 'unlinked' }, { ...live, gmail: { ...live.gmail, test: sentTest('sent') } }));
+        cy.get('#gmail-test input').clear().type('me@example.com{enter}');
+        cy.get('#gmail-test .test-send-status').should('contain', 'Sending a test email to me@example.com');
+        cy.get('#gmail-test .test-send-status').should('contain', 'Sent to me@example.com. Check the inbox');
+
+        cy.intercept('POST', '/api/settings/gmail/test/confirm', settingsWith({ status: 'unlinked' }, {
+            ...live, gmail: { ...live.gmail, test: { ...sentTest('sent', { confirmed: true }), confirmed: true } },
+        }));
+        cy.contains('#gmail-test button', 'I received it').click();
+        cy.contains('#toast', 'Test confirmed');
+        cy.get('#gmail-test .test-badge').should('have.text', 'Confirmed');
+        cy.get('#gmail-test .test-send-result').should('not.be.visible');
+        cy.get('#gmail-test').should('contain', 'This account is confirmed');
+    });
+
+    it('shows why a test failed', () => {
+        cy.intercept('GET', '/api/settings', settingsWith({ status: 'unlinked' }, {
+            dryRun: false,
+            gmail: { user: 'sender@gmail.com', passwordSet: true, test: sentTest('failed', { error: 'Gmail rejected the sign-in.' }) },
+        }));
+        cy.get('#settings [data-close]').click();
+        cy.get('#open-settings').click();
+        cy.get('#gmail-test .test-send-status').should('have.text', 'The test didn’t go through: Gmail rejected the sign-in.');
+        cy.contains('#gmail-test button', 'Send again').should('be.enabled');
+    });
+
+
+    it('keeps what you are typing while a test is sending', () => {
+        const sending = settingsWith({ status: 'unlinked' }, {
+            dryRun: false,
+            gmail: { user: 'sender@gmail.com', passwordSet: true, test: sentTest('sending') },
+        });
+        cy.intercept('GET', '/api/settings', sending).as('poll');
+        cy.get('#settings [data-close]').click();
+        cy.get('#open-settings').click();
+        cy.wait('@poll');
+        cy.get('#gmail-password').type('newpassword12345');
+        cy.wait('@poll');
+        cy.get('#gmail-password').should('have.value', 'newpassword12345');
+        cy.get('#gmail-test .test-send-status').should('contain', 'Sending a test email');
+    });
+
 });

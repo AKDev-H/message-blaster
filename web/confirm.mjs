@@ -1,4 +1,4 @@
-import { campaignPath, formFeedback, get, request, toast } from './ui.mjs';
+import { campaignPath, element, formFeedback, get, request, toast } from './ui.mjs';
 
 const actions = {
     start: { title: 'Start sending', done: 'Sending started' },
@@ -44,9 +44,13 @@ export function createConfirm(onDone) {
         form.reset();
         feedback.clear();
         get('confirm-title').textContent = config.title;
-        get('confirm-description').textContent = needsApproval(action)
-            ? `Type ${campaign.id} to confirm. Messages will be sent to real recipients.`
-            : config.copy;
+        const description = get('confirm-description');
+        if (needsApproval(action)) {
+            description.replaceChildren('Type ', element('kbd', 'confirm-token', campaign.id),
+                ' to confirm. Messages will be sent to real recipients.');
+        } else {
+            description.textContent = config.copy;
+        }
         get('approve-field').hidden = !needsApproval(action);
         get('review-fields').hidden = action !== 'review';
         get('confirm-body').hidden = !needsApproval(action) && action !== 'review';
@@ -89,6 +93,10 @@ export function createConfirm(onDone) {
         }
     }
 
+    controls.approve.addEventListener('input', () => {
+        const token = get('confirm-description').querySelector('.confirm-token');
+        token?.classList.toggle('matched', controls.approve.value.trim() === pending?.id);
+    });
     for (const [name, control] of Object.entries(controls)) {
         control.addEventListener(control.matches('select') ? 'change' : 'input', () => {
             if (control.hasAttribute('aria-invalid')) feedback.show(name, validate()[name]);
