@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { loadEnv } from '../src/config/env.js';
 
-// Reloading the dashboard stops the campaign worker and leaves the campaign Paused, so refuse while one is sending.
 const { DATABASE_URL } = loadEnv();
 if (existsSync(DATABASE_URL)) {
     const db = new DatabaseSync(DATABASE_URL, { readOnly: true });
