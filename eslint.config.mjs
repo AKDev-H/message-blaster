@@ -35,7 +35,6 @@ export default defineConfig(
     {
         files: ['{src,tests}/**/*.ts'],
         languageOptions: {
-            // Babel can parse TypeScript 7 syntax without selecting the TypeScript compiler version.
             parser: babelParser,
             parserOptions: {
                 requireConfigFile: false,
@@ -47,7 +46,6 @@ export default defineConfig(
             },
         },
         rules: {
-            // TypeScript checks scope and declarations in both type and value positions.
             'no-undef': 'off',
             'no-redeclare': 'off',
             'no-unused-vars': 'off',

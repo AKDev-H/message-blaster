@@ -5,7 +5,6 @@ import type { CampaignChannel } from '../types/index.js';
 import { MAX_CAMPAIGN_ROWS } from '../config/constants.js';
 
 const inputColumns = [
-    ['Client ID', 'clientId', 16],
     ['Client Name', 'clientName', 25],
     ['Phone Number', 'phone', 22],
     ['Message', 'message', 54],
@@ -14,10 +13,10 @@ const inputColumns = [
     ['Campaign ID', 'campaignId', 18],
 ] as const;
 const gmailInputColumns = [
-    inputColumns[0], inputColumns[1],
+    inputColumns[0],
     ['Email Address', 'email', 34],
     ['Subject', 'subject', 40],
-    ...inputColumns.slice(3),
+    ...inputColumns.slice(2),
 ] as const;
 
 const trackingColumns = [
@@ -68,7 +67,7 @@ function makeWorkbook(results: boolean, channel: CampaignChannel): { workbook: E
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF164E4B' } };
     header.alignment = { vertical: 'middle' };
-    for (const key of ['clientId', gmail ? 'email' : 'phone', 'campaignId', gmail ? 'gmailMessageId' : 'whatsappMessageId']) {
+    for (const key of [gmail ? 'email' : 'phone', 'campaignId', gmail ? 'gmailMessageId' : 'whatsappMessageId']) {
         sheet.getColumn(key).numFmt = '@';
     }
     for (const key of ['message', 'errorMessage']) {
@@ -89,7 +88,6 @@ async function publishWorkbook(data: Buffer, path: string): Promise<boolean> {
         const file = join(temporary, 'workbook.xlsx');
         await writeFile(file, data, { flag: 'wx', mode: 0o600 });
         try {
-            // Publish only after the workbook is complete. Another process may have created it first.
             await link(file, target);
             return true;
         } catch (error) {
@@ -112,15 +110,17 @@ export async function generateExcel(path: string, channel: CampaignChannel = 'wh
     return publishWorkbook(await createExcelTemplate(channel), path);
 }
 
-/**
- * Blank import template for the dashboard: only the columns a user fills in, with no sample rows,
- * so every recipient, message and attachment comes from the user. `both` carries both address columns.
- */
-async function createBlankTemplate(channel: CampaignChannel | 'both'): Promise<Buffer> {
+export interface TypedRecipient {
+    clientName: string;
+    email: string;
+    phone: string;
+}
+
+async function createBlankTemplate(channel: CampaignChannel | 'both', recipients: readonly TypedRecipient[] = []): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Clients', { views: [{ state: 'frozen', ySplit: 1 }] });
     const columns = channel === 'both'
-        ? [...gmailInputColumns.slice(0, 3), inputColumns[2], ...gmailInputColumns.slice(3)]
+        ? [...gmailInputColumns.slice(0, 2), inputColumns[1], ...gmailInputColumns.slice(2)]
         : channel === 'gmail' ? [...gmailInputColumns] : [...inputColumns];
     sheet.columns = columns.map(([header, key, width]) => ({ header: key === 'pdfFilename' ? 'Attachment' : header, key, width }));
     sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
@@ -129,17 +129,21 @@ async function createBlankTemplate(channel: CampaignChannel | 'both'): Promise<B
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F6F73' } };
     for (const [, key] of columns) {
-        if (['clientId', 'email', 'phone', 'campaignId'].includes(key)) sheet.getColumn(key).numFmt = '@';
+        if (['email', 'phone', 'campaignId'].includes(key)) sheet.getColumn(key).numFmt = '@';
     }
     sheet.getColumn('message').alignment = { vertical: 'top', wrapText: true };
+    for (const recipient of recipients) sheet.addRow({ ...recipient, consentStatus: 'Opted In' });
     return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+export function createRecipientsWorkbook(recipients: readonly TypedRecipient[]): Promise<Buffer> {
+    return createBlankTemplate('both', recipients);
 }
 
 export async function createExcelTemplate(channel: CampaignChannel | 'both', forWeb = false): Promise<Buffer> {
     if (forWeb || channel === 'both') return createBlankTemplate(channel);
     const { workbook, sheet } = makeWorkbook(false, channel);
     sheet.addRow({
-        clientId: 'SAMPLE-001',
         clientName: 'Example Client',
         phone: '+12025550101',
         email: 'client@example.com',
@@ -162,7 +166,7 @@ function readInputValue(cell: ExcelJS.Cell, field: InputField | keyof EmailField
         value.hyperlink.toLowerCase() === `mailto:${value.text.trim().toLowerCase()}`) {
         return value.text.trim();
     }
-    if (typeof value === 'number' && ['phone', 'clientId', 'campaignId'].includes(field) &&
+    if (typeof value === 'number' && ['phone', 'campaignId'].includes(field) &&
         Number.isSafeInteger(value) && value >= 0 && value < 1e15) {
         return String(value);
     }
@@ -189,7 +193,6 @@ export async function readExcel(source: string | Buffer, channel: CampaignChanne
     sheet.getRow(1).eachCell((cell, column) => {
         if (typeof cell.value !== 'string') return;
         const raw = cell.value.trim().toLowerCase();
-        // Dashboard templates call the attachment column "Attachment"; older workbooks use "PDF Filename".
         const header = raw === 'attachment' ? 'pdf filename' : raw;
         if (!expected.has(header)) return;
         if (headerPositions.has(header)) throw new Error(`Duplicate Excel column header: ${cell.value.trim()}.`);
@@ -207,7 +210,6 @@ export async function readExcel(source: string | Buffer, channel: CampaignChanne
         if (rowNumber === 1) return;
         const record: ImportRow = {
             rowNumber,
-            clientId: '',
             clientName: '',
             phone: '',
             message: '',

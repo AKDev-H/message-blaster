@@ -24,12 +24,12 @@ test('Gmail import and approved SMTP runs share the campaign queue and track acc
     await workbook.xlsx.readFile(path);
     const sheet = workbook.worksheets[0]!;
     sheet.getRow(2).values = [
-        'C1', 'Example Client', { text: 'Client@example.com', hyperlink: 'mailto:Client@example.com' },
+        'Example Client', { text: 'Client@example.com', hyperlink: 'mailto:Client@example.com' },
         'Document for {{client_name}}', 'Hello {{email_address}}', 'sample-document.pdf', 'Opted In', 'campaign',
     ];
-    sheet.addRow(['C2', 'Opt Out', 'out@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
-    sheet.addRow(['C3', 'Duplicate A', 'dup@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
-    sheet.addRow(['C4', 'Duplicate B', 'DUP@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
+    sheet.addRow(['Opt Out', 'out@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
+    sheet.addRow(['Duplicate A', 'dup@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
+    sheet.addRow(['Duplicate B', 'DUP@example.com', 'A subject', 'Body', '', 'Opted In', 'campaign']);
     await workbook.xlsx.writeFile(path);
 
     const env = {
@@ -99,9 +99,9 @@ test('Gmail import and approved SMTP runs share the campaign queue and track acc
     await exportCampaign(store, 'campaign', exportPath);
     await workbook.xlsx.readFile(exportPath);
     const results = workbook.worksheets[0]!;
-    assert.equal(results.getCell('C1').value, 'Email Address');
-    assert.equal(results.getCell('J1').value, 'Gmail Message ID');
-    assert.equal(results.getCell('J2').value, mail.messageId);
+    assert.equal(results.getCell('B1').value, 'Email Address');
+    assert.equal(results.getCell('I1').value, 'Gmail Message ID');
+    assert.equal(results.getCell('I2').value, mail.messageId);
 });
 
 test('the Gmail migration preserves legacy WhatsApp campaigns, attempts and withdrawals', async () => {

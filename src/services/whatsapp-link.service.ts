@@ -12,14 +12,11 @@ export type WhatsAppLinkStatus = 'unlinked' | 'pairing' | 'linked' | 'loggedOut'
 
 export interface WhatsAppLinkState {
     status: WhatsAppLinkStatus;
-    /** Linked phone number in international format. */
     account?: string;
-    /** Current pairing QR code as an SVG data URL. */
     qr?: string;
     error?: string;
 }
 
-/** Reads the linked account from the stored WhatsApp session without connecting. */
 export function readWhatsAppAccount(authDir: string): { account?: string; loggedOut: boolean } {
     const path = join(authDir, 'auth-state.sqlite');
     if (!existsSync(path)) return { loggedOut: false };
@@ -42,7 +39,6 @@ export function readWhatsAppAccount(authDir: string): { account?: string; logged
     }
 }
 
-/** Pairs WhatsApp from the dashboard: shows QR codes until the phone scans one, then releases the session. */
 export class WhatsAppLinker {
     #session: WhatsAppService | undefined;
     #qr: string | undefined;
@@ -86,7 +82,6 @@ export class WhatsAppLinker {
         });
     }
 
-    /** Stops an in-progress pairing attempt. */
     async cancel(): Promise<void> {
         const session = this.#session;
         this.#session = undefined;
@@ -96,10 +91,6 @@ export class WhatsAppLinker {
         this.onChange();
     }
 
-    /**
-     * Archives the stored session (it is never deleted) so a new number can be linked.
-     * Remove the device from WhatsApp → Linked devices on the phone as well.
-     */
     async unlink(): Promise<void> {
         if (this.#session) throw new Error('Finish or cancel linking first.');
         if (!existsSync(this.env.AUTH_DIR)) return;

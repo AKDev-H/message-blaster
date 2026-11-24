@@ -56,7 +56,7 @@ describe('Attachments and document viewer', () => {
         cy.task('workbook:create', {
             name: 'prices',
             channel: 'gmail',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com' }],
+            rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com' }],
         }).then(upload);
 
         view('proposal.docx');
@@ -65,7 +65,7 @@ describe('Attachments and document viewer', () => {
         cy.get('#viewer [data-close]').click();
 
         view('prices.xlsx');
-        cy.get('.viewer-table th').first().should('have.text', 'Client ID');
+        cy.get('.viewer-table th').first().should('have.text', 'Client Name');
         cy.get('.viewer-table td').should('contain', 'ari@example.com');
     });
 
@@ -92,7 +92,7 @@ describe('Attachments and document viewer', () => {
             name: 'with-file',
             channels: ['gmail'],
             channel: 'gmail',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'PDF Filename': 'terms.txt', 'Consent Status': 'Opted In' }],
+            rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'PDF Filename': 'terms.txt', 'Consent Status': 'Opted In' }],
         });
         cy.get('#detail-rows').contains('button', 'terms.txt').click();
         cy.get('#viewer-title').should('have.text', 'terms.txt');

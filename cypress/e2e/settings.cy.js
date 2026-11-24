@@ -1,4 +1,3 @@
-// WhatsApp pairing and the Gmail connection check reach external services, so those requests are stubbed.
 const settingsWith = whatsapp => ({
     gmail: { user: '', passwordSet: false },
     whatsapp,
@@ -86,7 +85,7 @@ describe('Settings', () => {
             name: 'local-numbers',
             channels: ['whatsapp'],
             channel: 'whatsapp',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Phone Number': '81234567', 'Consent Status': 'Opted In' }],
+            rows: [{ 'Client Name': 'Ari', 'Phone Number': '81234567', 'Consent Status': 'Opted In' }],
         });
         cy.get('#detail-rows').should('contain', '+6581234567');
     });

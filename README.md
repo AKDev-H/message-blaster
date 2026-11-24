@@ -44,7 +44,7 @@ Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withd
 ## Using the dashboard
 
 1. **New campaign**: pick Gmail, WhatsApp or both, then download the Excel template.
-2. **Fill in the workbook** and upload it. Set fallback subject, message and attachment for blank cells. Type `{{` to insert a field. With `GROQ_API_KEY` set, **Write** drafts copy with AI.
+2. **Add recipients**: fill in the workbook and upload it, or switch to **Type in** and enter names with an email or phone number (up to 500; paste rows straight from a spreadsheet). Typed recipients are saved as `Opted In` once you confirm their consent. Set fallback subject, message and attachment for blank cells. Type `{{` to insert a field. With `GROQ_API_KEY` set, **Write** drafts copy with AI.
 3. **Import and preview**: check the rendered messages and skipped rows.
 4. **Start**: enter the campaign ID to approve it. Pause, cancel, retry and review from the queue.
 
@@ -56,7 +56,7 @@ Attachments are any common format up to 10 MB (executables and scripts are refus
 
 | Column | Gmail | WhatsApp | Notes |
 | --- | :-: | :-: | --- |
-| Client ID, Client Name | ✓ | ✓ | Required |
+| Client Name | ✓ | ✓ | Required |
 | Email Address | ✓ | | |
 | Phone Number | | ✓ | Format as text. Local numbers use `DEFAULT_COUNTRY` |
 | Subject | ✓ | | |
@@ -65,7 +65,7 @@ Attachments are any common format up to 10 MB (executables and scripts are refus
 | Consent Status | ✓ | ✓ | Only `Opted In` is sent |
 | Campaign ID | ✓ | ✓ | Blank means the row belongs to the selected campaign |
 
-Placeholders: `{{client_name}}`, `{{client_id}}`, `{{email_address}}`, `{{phone_number}}`, `{{campaign_id}}`, `{{pdf_filename}}`.
+Placeholders: `{{client_name}}`, `{{email_address}}`, `{{phone_number}}`, `{{campaign_id}}`, `{{pdf_filename}}`.
 
 ## CLI
 

@@ -51,7 +51,6 @@ function setMetric(key, value) {
     const text = number.format(value);
     if (target.textContent === text) return;
     target.textContent = text;
-    // Restart the highlight animation whenever a counter moves.
     target.classList.remove('changed');
     void target.offsetWidth;
     target.classList.add('changed');
@@ -93,7 +92,6 @@ for (const dialog of document.querySelectorAll('dialog')) {
 get('create-campaign').addEventListener('click', () => composer.open());
 get('open-settings').addEventListener('click', () => settings.open());
 
-// The template menu closes after a choice, on Escape, or when clicking elsewhere.
 const templateMenu = get('template-menu');
 templateMenu.addEventListener('click', event => {
     if (event.target.closest('a')) templateMenu.open = false;

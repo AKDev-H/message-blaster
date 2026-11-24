@@ -4,8 +4,9 @@ import { gmailMigration } from './migrations/002-gmail.js';
 import { webMigration } from './migrations/003-web.js';
 import { richScriptsMigration } from './migrations/004-rich-scripts.js';
 import { settingsMigration } from './migrations/005-settings.js';
+import { dropClientIdMigration } from './migrations/006-drop-client-id.js';
 
-const migrations = [initialMigration, gmailMigration, webMigration, richScriptsMigration, settingsMigration];
+const migrations = [initialMigration, gmailMigration, webMigration, richScriptsMigration, settingsMigration, dropClientIdMigration];
 
 function getVersion(db: DatabaseSync): number {
     return Number(db.prepare('PRAGMA user_version').get()?.user_version);

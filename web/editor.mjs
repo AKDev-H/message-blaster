@@ -21,7 +21,6 @@ function appendSafeNodes(source, target) {
     }
 }
 
-/** Renders untrusted formatted text, keeping only the formatting tags the editor can produce. */
 export function renderRichText(target, html) {
     const template = document.createElement('template');
     template.innerHTML = html;
@@ -30,10 +29,6 @@ export function renderRichText(target, html) {
     target.replaceChildren(fragment);
 }
 
-/**
- * Formatted message editor. Typing `{{` opens a menu of personalization fields.
- * `variables()` returns the fields currently available as `{ token, label }`.
- */
 export function createEditor(root, variables) {
     const toolbar = get('script-toolbar');
     const controls = [...toolbar.querySelectorAll('[data-format]')];
@@ -60,7 +55,6 @@ export function createEditor(root, variables) {
 
     function focusEditor() {
         const selection = window.getSelection();
-        // Re-applying a live caret would drop pending inline styles (e.g. bold toggled with no selection).
         if (document.activeElement === root && rangeInEditor(selection)) return;
         root.focus();
         if (savedRange && root.contains(savedRange.commonAncestorContainer)) {
@@ -85,7 +79,6 @@ export function createEditor(root, variables) {
     }
 
     function replaceSelection(value) {
-        // insertText keeps the browser's undo history; the fallback covers browsers without it.
         if (document.execCommand('insertText', false, value)) return;
         const selection = window.getSelection();
         const range = rangeInEditor(selection);
@@ -111,7 +104,6 @@ export function createEditor(root, variables) {
         notifyChange();
     }
 
-    // --- Mentions -----------------------------------------------------------------------------
 
     function closeMention() {
         if (!mention) return;
@@ -202,7 +194,6 @@ export function createEditor(root, variables) {
         event.stopPropagation();
     }
 
-    // --- Wiring -------------------------------------------------------------------------------
 
     toolbar.addEventListener('mousedown', event => {
         if (event.target.closest('[data-format]')) event.preventDefault();
@@ -235,7 +226,6 @@ export function createEditor(root, variables) {
     });
 
     return {
-        /** WhatsApp only supports lists, so other formatting is hidden when it is the only channel. */
         setChannels(channels) {
             const whatsappOnly = channels.length === 1 && channels[0] === 'whatsapp';
             for (const control of controls) {

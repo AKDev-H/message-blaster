@@ -45,7 +45,7 @@ test('generates a private, opt-out sample template without overwriting it', asyn
     await workbook.xlsx.readFile(path);
     assert.deepEqual(workbook.worksheets[0]?.getRow(1).values, [
         // eslint-disable-next-line no-sparse-arrays -- ExcelJS returns one-based row values.
-        , 'Client ID', 'Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status',
+        , 'Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status',
         'Campaign ID', 'Sending Status', 'WhatsApp Message ID', 'Sent At', 'Error Message', 'Retry Count',
     ]);
     const [sample] = await readExcel(path);
@@ -58,22 +58,21 @@ test('imports 5,000 contact rows, preserves text identifiers and flags formula c
     const path = join(directory, 'import.xlsx');
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Clients');
-    sheet.addRow(['Consent Status', 'Phone Number', 'Client Name', 'Message', 'PDF Filename', 'Campaign ID', 'Client ID']);
+    sheet.addRow(['Consent Status', 'Phone Number', 'Client Name', 'Message', 'PDF Filename', 'Campaign ID']);
     for (let index = 0; index < 5_000; index++) {
         const phone = index === 0 ? { formula: '"0123456789"', result: '0123456789' } : '0123456789';
-        sheet.addRow(['Opted In', phone, 'Example Client', 'First line\nSecond line', '', 'demo', `000${index}`]);
+        sheet.addRow(['Opted In', phone, 'Example Client', 'First line\nSecond line', '', 'demo']);
     }
-    sheet.getRow(6000).getCell(8).value = 'Ignored metadata';
+    sheet.getRow(6000).getCell(7).value = 'Ignored metadata';
     await workbook.xlsx.writeFile(path);
     const rows = await readExcel(path);
     assert.equal(rows.length, 5_000);
     assert.match(rows[0]?.error ?? '', /Phone Number.*without formulas/);
     assert.equal(rows[1]?.phone, '0123456789');
-    assert.equal(rows[1]?.clientId, '0001');
     assert.equal(rows[1]?.message, 'First line\nSecond line');
     assert.equal(rows.at(-1)?.pdfFilename, '');
 
-    sheet.getRow(6001).getCell(7).value = 'too many';
+    sheet.getRow(6001).getCell(6).value = 'too many';
     await workbook.xlsx.writeFile(path);
     await assert.rejects(readExcel(path), /at most 5000 contact rows/);
 });
@@ -82,7 +81,6 @@ test('exports receipt timestamps and keeps message content as text', async (t) =
     const directory = await workspace(t);
     const path = join(directory, 'results.xlsx');
     await writeExcel(path, [{
-        clientId: '0042',
         clientName: 'Example Client',
         phone: '+12025550101',
         message: '=1+1',
@@ -100,11 +98,11 @@ test('exports receipt timestamps and keeps message content as text', async (t) =
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(path);
     const sheet = workbook.getWorksheet('Results');
-    assert.equal(sheet?.getCell('D2').value, '=1+1');
-    assert.equal(sheet?.getCell('M1').value, 'Server Acknowledged At');
-    assert.deepEqual(sheet?.getCell('M2').value, new Date('2026-11-23T00:00:01.000Z'));
-    assert.deepEqual(sheet?.getCell('N2').value, new Date('2026-11-23T00:00:02.000Z'));
-    assert.deepEqual(sheet?.getCell('O2').value, new Date('2026-11-23T00:00:03.000Z'));
+    assert.equal(sheet?.getCell('C2').value, '=1+1');
+    assert.equal(sheet?.getCell('L1').value, 'Server Acknowledged At');
+    assert.deepEqual(sheet?.getCell('L2').value, new Date('2026-11-23T00:00:01.000Z'));
+    assert.deepEqual(sheet?.getCell('M2').value, new Date('2026-11-23T00:00:02.000Z'));
+    assert.deepEqual(sheet?.getCell('N2').value, new Date('2026-11-23T00:00:03.000Z'));
     await assert.rejects(writeExcel(path, []), /already exists/);
 });
 

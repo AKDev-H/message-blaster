@@ -5,13 +5,11 @@ import { defineConfig } from 'cypress';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 
-// The Cypress server (`npm run cy:server`) uses this database and attachment folder, never the real ones.
 const storage = resolve('storage/cypress');
 const databasePath = join(storage, 'cypress.db');
 const attachments = join(storage, 'attachments');
 const fixtures = join(storage, 'fixtures');
 
-/** Empties every table while the dashboard keeps running; its live stream picks up the change. */
 async function resetDatabase() {
     const db = new DatabaseSync(databasePath);
     try {
@@ -28,12 +26,11 @@ async function resetDatabase() {
 }
 
 const headers = {
-    gmail: ['Client ID', 'Client Name', 'Email Address', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
-    whatsapp: ['Client ID', 'Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
-    both: ['Client ID', 'Client Name', 'Email Address', 'Phone Number', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
+    gmail: ['Client Name', 'Email Address', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
+    whatsapp: ['Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
+    both: ['Client Name', 'Email Address', 'Phone Number', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
 };
 
-/** Writes an import workbook. Each row is an object keyed by header name; missing cells stay empty. */
 async function createWorkbook({ name, channel, rows }) {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Clients');
@@ -45,7 +42,6 @@ async function createWorkbook({ name, channel, rows }) {
     return path;
 }
 
-/** Writes a minimal Word document with a heading and a paragraph for the document viewer. */
 async function createDocx({ name, heading, paragraph }) {
     const zip = new JSZip();
     zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -63,7 +59,6 @@ async function createDocx({ name, heading, paragraph }) {
     return path;
 }
 
-/** Reads a downloaded workbook (base64) and reports its header row and how many rows it has. */
 async function inspectWorkbook(base64) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(Buffer.from(base64, 'base64'));

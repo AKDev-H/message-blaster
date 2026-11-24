@@ -2,12 +2,12 @@ import { link, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/prom
 import type { IncomingMessage } from 'node:http';
 import { join } from 'node:path';
 import type { Environment } from '../config/env.js';
-import { CAMPAIGN_ID, MAX_SCRIPT_HTML_LENGTH } from '../config/constants.js';
+import { CAMPAIGN_ID, MAX_SCRIPT_HTML_LENGTH, MAX_TYPED_RECIPIENTS } from '../config/constants.js';
 import type { DraftRequest } from '../services/ai.service.js';
 import { isSupportedCountry } from 'libphonenumber-js';
 import { AttachmentError, isAllowedAttachmentName, readAttachment } from '../services/attachment.service.js';
 import { prepareRows } from '../services/campaign.service.js';
-import { readExcel } from '../services/excel.service.js';
+import { createRecipientsWorkbook, readExcel, type TypedRecipient } from '../services/excel.service.js';
 import type { Store } from '../services/message.service.js';
 import type { EditableSettings } from '../services/settings.service.js';
 import { cleanScriptHtml, scriptText } from '../services/rich-script.js';
@@ -17,8 +17,7 @@ import { normalizeEmail } from '../utils/email.util.js';
 const maxFileBytes = 10 * 1024 * 1024;
 const maxMultipartBytes = maxFileBytes + 256 * 1024;
 
-/** Form fields the dashboard can highlight when a request is rejected. */
-export type DraftField = 'id' | 'channel' | 'workbook' | 'subject' | 'script' | 'attachment'
+export type DraftField = 'id' | 'channel' | 'workbook' | 'recipients' | 'subject' | 'script' | 'attachment'
     | 'gmailUser' | 'gmailPassword' | 'country' | 'delay';
 
 export class HttpError extends Error {
@@ -73,14 +72,12 @@ export function readChannel(value: unknown): CampaignChannel {
     throw new HttpError(400, 'Choose Gmail or WhatsApp.', 'channel');
 }
 
-/** Reads the ticked delivery channels; a campaign can go out over Gmail, WhatsApp, or both. */
 export function readChannels(form: FormData): CampaignChannel[] {
     const channels = [...new Set(form.getAll('channel'))].map(readChannel);
     if (!channels.length) throw new HttpError(400, 'Choose at least one channel.', 'channel');
     return channels;
 }
 
-/** Reads the Gmail sender. A blank password keeps the saved one, so it never has to be sent back to the browser. */
 export function readGmailSettings(body: Record<string, unknown>, hasPassword: boolean): Partial<EditableSettings> {
     const { user, password } = body;
     let address: string;
@@ -97,7 +94,6 @@ export function readGmailSettings(body: Record<string, unknown>, hasPassword: bo
     return { GMAIL_USER: address, ...(pass ? { GMAIL_APP_PASSWORD: pass } : {}) };
 }
 
-/** Reads sending preferences: the country for local phone numbers and the pause between messages. */
 export function readSendingSettings(body: Record<string, unknown>): Partial<EditableSettings> {
     const country = typeof body.country === 'string' ? body.country.trim().toUpperCase() : '';
     if (!isSupportedCountry(country)) throw new HttpError(400, 'Choose a country.', 'country');
@@ -108,7 +104,6 @@ export function readSendingSettings(body: Record<string, unknown>): Partial<Edit
     return { DEFAULT_COUNTRY: country, MESSAGE_DELAY_MS: Math.round(seconds * 1_000) };
 }
 
-/** Reads an AI drafting request: what to write, for which channels, and optionally the draft to revise. */
 export function readDraftRequest(body: Record<string, unknown>): DraftRequest {
     const { prompt, channels, subject, message } = body;
     if (typeof prompt !== 'string' || prompt.trim().length < 3 || prompt.length > 1_000) {
@@ -124,7 +119,6 @@ export function readDraftRequest(body: Record<string, unknown>): DraftRequest {
     };
 }
 
-/** One campaign per channel. Sending to both channels suffixes each campaign name with its channel. */
 export function campaignTargets(name: string, channels: readonly CampaignChannel[]) {
     if (channels.length === 1) return [{ id: name, channel: channels[0]! }];
     const targets = channels.map(channel => ({ id: `${name}-${channel}`, channel }));
@@ -160,7 +154,6 @@ function file(form: FormData, name: string, extension: string, field?: DraftFiel
     return value;
 }
 
-/** Reads the formatted script, keeping only safe formatting and deriving the plain-text fallback from it. */
 function readScript(form: FormData) {
     const html = cleanScriptHtml(text(form, 'scriptHtml', MAX_SCRIPT_HTML_LENGTH, 'script'));
     const plain = html ? scriptText(html) : '';
@@ -168,12 +161,56 @@ function readScript(form: FormData) {
     return { script: text(form, 'script', 32_767, 'script') };
 }
 
-export async function readDraft(form: FormData, previousWorkbook?: Buffer) {
+const unreadableRecipients = () => new HttpError(400, 'The recipient list could not be read.', 'recipients');
+const recipientLimits = { name: 255, email: 320, phone: 40 } as const;
+
+function readTypedRecipient(entry: unknown): TypedRecipient {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw unreadableRecipients();
+    const fields = entry as Record<string, unknown>;
+    const value = (key: keyof typeof recipientLimits) => {
+        const raw = fields[key] ?? '';
+        if (typeof raw !== 'string') throw unreadableRecipients();
+        const trimmed = raw.trim();
+        if (trimmed.length > recipientLimits[key]) {
+            throw new HttpError(400, `Use ${recipientLimits[key]} characters or fewer for each ${key}.`, 'recipients');
+        }
+        return trimmed;
+    };
+    return { clientName: value('name'), email: value('email'), phone: value('phone') };
+}
+
+function readRecipients(form: FormData): TypedRecipient[] {
+    const raw = text(form, 'recipients', 256 * 1024, 'recipients');
+    if (!raw) return [];
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw unreadableRecipients();
+    }
+    if (!Array.isArray(parsed)) throw unreadableRecipients();
+    const recipients = parsed.map(readTypedRecipient).filter(({ clientName, email, phone }) => clientName || email || phone);
+    if (recipients.length > MAX_TYPED_RECIPIENTS) {
+        throw new HttpError(400, `Type in up to ${MAX_TYPED_RECIPIENTS} recipients, or upload a workbook.`, 'recipients');
+    }
+    if (recipients.length && form.get('recipientsConsent') !== 'yes') {
+        throw new HttpError(400, 'Confirm that everyone listed agreed to receive messages.', 'recipients');
+    }
+    return recipients;
+}
+
+async function readRecipientSource(form: FormData, previousWorkbook?: Buffer) {
+    const typed = readRecipients(form);
+    if (typed.length) return { workbook: await createRecipientsWorkbook(typed), source: 'recipients' as const };
     const upload = file(form, 'workbook', '.xlsx', 'workbook');
     const workbook = upload ? Buffer.from(await upload.arrayBuffer()) : previousWorkbook;
     if (!workbook) throw new HttpError(400, 'Choose an Excel .xlsx workbook.', 'workbook');
+    return { workbook, source: 'workbook' as const };
+}
+
+export async function readDraft(form: FormData, previousWorkbook?: Buffer) {
     return {
-        workbook,
+        ...await readRecipientSource(form, previousWorkbook),
         ...readScript(form),
         subject: text(form, 'subject', 255, 'subject').trim(),
         attachment: text(form, 'attachment', 255, 'attachment').trim(),
@@ -200,13 +237,12 @@ export async function previewDraft(
         throw new HttpError(400, 'Could not read the workbook. Use the downloadable Excel sample.', 'workbook');
     }
     const matches = rows.filter(row => !row.campaignId || row.campaignId === id || row.campaignId === group);
-    // In a multi-channel send, a row without an address for this channel belongs only to the other channel.
     const selected = group ? matches.filter(row => (channel === 'gmail' ? row.email : row.phone)?.trim()) : matches;
     if (!selected.length) {
         const message = group
             ? `No rows have ${channel === 'gmail' ? 'an email address' : 'a phone number'} for ${channel === 'gmail' ? 'Gmail' : 'WhatsApp'}.`
             : 'No rows match this campaign. Check the workbook’s Campaign ID column.';
-        throw new HttpError(400, message, 'workbook');
+        throw new HttpError(400, message, draft.source);
     }
     for (const row of selected) {
         if (!row.pdfFilename) row.pdfFilename = draft.attachment;

@@ -151,7 +151,6 @@ export async function runCli(argv: string[]) {
                 if (!options.consent) throw new Error('Test preparation requires --consent.');
                 const rows = await prepareRows(store, env, id, [{
                     rowNumber: 1,
-                    clientId: 'TEST',
                     clientName: 'Test Contact',
                     phone: options.phone ?? '',
                     ...(gmail ? { email: options.email ?? '', subject: options.subject ?? '' } : {}),
@@ -237,7 +236,6 @@ function liveCommand(command: Command) {
 async function withDb(action: (store: Store, env: Environment, db: DatabaseSync) => void | Promise<void>) {
     const base = loadEnv();
     using db = openDatabase(base.DATABASE_URL);
-    // Settings saved in the dashboard take precedence over .env.
     await action(new Store(db), withSavedSettings(base, db), db);
 }
 
@@ -263,7 +261,7 @@ function preview(store: Store, id: string, limit: number) {
     console.log(`Campaign ${id} (${campaign.channel}) is ${campaign.state}. Showing up to ${limit} recipient records.`);
     console.table([summarizeRecipients(rows, campaign.channel)]);
     for (const row of rows.slice(0, limit)) {
-        console.log(terminalText(`\n#${row.id} • Excel row ${row.rowNumber} • ${row.clientId} • ${row.clientName} • ${row.email ?? row.phone}`));
+        console.log(terminalText(`\n#${row.id} • Excel row ${row.rowNumber} • ${row.clientName} • ${row.email ?? row.phone}`));
         console.log(terminalText(`${row.status} • Consent ${row.consentStatus || 'missing'}`));
         if (row.errorMessage) console.log(terminalText(row.errorMessage));
         if (row.pdfFilename) console.log(terminalText(`PDF ${row.pdfFilename}`));

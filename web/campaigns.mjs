@@ -35,7 +35,6 @@ function progress(campaign) {
     return meter;
 }
 
-/** Renders the campaign table, skipping DOM work when nothing visible changed. */
 export function createQueue(onOpen) {
     const rows = get('campaign-rows');
     const channelFilter = get('channel-filter');
@@ -109,7 +108,6 @@ export function createQueue(onOpen) {
     return { render, clearFilters };
 }
 
-/** Shows one campaign's recipients and the controls that apply to its current state. */
 export function createDetails({ onEdit, onAction, onClose, onViewAttachment }) {
     const panel = get('details');
     const actionsTarget = get('detail-actions');
@@ -207,7 +205,7 @@ export function createDetails({ onEdit, onAction, onClose, onViewAttachment }) {
         const row = element('tr');
         const identity = element('td');
         identity.append(
-            element('strong', 'block', record.clientName || record.clientId || `Row ${record.rowNumber}`),
+            element('strong', 'block', record.clientName || `Row ${record.rowNumber}`),
             element('span', 'muted block', record.email || record.phone || 'No valid address'),
         );
         const message = messageCell(record);
@@ -285,7 +283,6 @@ export function createDetails({ onEdit, onAction, onClose, onViewAttachment }) {
         panel.hidden = true;
     }
 
-    /** Applies a live snapshot: reloads recipients only when this campaign changed. */
     function update(next, changed) {
         overview = next;
         if (!selected) return;

@@ -24,7 +24,6 @@ const settings = {
 function row(rowNumber: number, data: Partial<PreparedRow> = {}): PreparedRow {
     return {
         rowNumber,
-        clientId: `C-${rowNumber}`,
         clientName: 'Example',
         phone: `+6012345${String(rowNumber).padStart(4, '0')}`,
         message: 'Example message',

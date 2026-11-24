@@ -19,9 +19,9 @@ describe('Dashboard', () => {
         cy.get('#template-menu summary').click();
         cy.get('#template-menu [role="menuitem"]').should('have.length', 3);
         const expected = {
-            gmail: ['Client ID', 'Client Name', 'Email Address', 'Subject', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
-            whatsapp: ['Client ID', 'Client Name', 'Phone Number', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
-            both: ['Client ID', 'Client Name', 'Email Address', 'Phone Number', 'Subject', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
+            gmail: ['Client Name', 'Email Address', 'Subject', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
+            whatsapp: ['Client Name', 'Phone Number', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
+            both: ['Client Name', 'Email Address', 'Phone Number', 'Subject', 'Message', 'Attachment', 'Consent Status', 'Campaign ID'],
         };
         for (const [channel, headers] of Object.entries(expected)) {
             cy.get(`#template-menu a[href="/api/template?channel=${channel}"]`).should('have.attr', 'download');
@@ -55,8 +55,8 @@ describe('Dashboard', () => {
             channels: ['gmail'],
             channel: 'gmail',
             rows: [
-                { 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hello', 'Consent Status': 'Opted In' },
-                { 'Client ID': 'C2', 'Client Name': 'Ben', 'Email Address': 'ben@example.com', Subject: 'Hello', 'Consent Status': 'Opted In' },
+                { 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hello', 'Consent Status': 'Opted In' },
+                { 'Client Name': 'Ben', 'Email Address': 'ben@example.com', Subject: 'Hello', 'Consent Status': 'Opted In' },
             ],
         });
         cy.contains('#toast', 'Campaign created');
@@ -73,7 +73,7 @@ describe('Dashboard', () => {
             name: 'only-mail',
             channels: ['gmail'],
             channel: 'gmail',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'Consent Status': 'Opted In' }],
+            rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'Consent Status': 'Opted In' }],
         });
         cy.get('#channel-filter').select('WhatsApp');
         cy.get('#campaign-empty').should('contain', 'No matching campaigns');
@@ -87,7 +87,7 @@ describe('Dashboard', () => {
             name: 'to-delete',
             channels: ['gmail'],
             channel: 'gmail',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'Consent Status': 'Opted In' }],
+            rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'Consent Status': 'Opted In' }],
         });
         cy.get('#detail-actions').contains('button', 'Delete').click();
         cy.get('#confirm').should('be.visible').and('contain', 'permanently deletes');

@@ -1,5 +1,3 @@
-// Channel logos. WhatsApp's mark is from Simple Icons (CC0); the Gmail "M" uses Google's published logo colours.
-// They identify the delivery channel only.
 const svgNamespace = 'http://www.w3.org/2000/svg';
 
 const logos = {
@@ -24,7 +22,6 @@ const logos = {
     },
 };
 
-/** Returns the channel's logo as decorative SVG. */
 export function brandLogo(channel, size = 16) {
     const logo = logos[channel];
     const svg = document.createElementNS(svgNamespace, 'svg');
@@ -41,7 +38,6 @@ export function brandLogo(channel, size = 16) {
     return svg;
 }
 
-/** The channel logo on a small white tile, used in tables, headers and pickers. */
 export function channelMark(channel, size = 16) {
     const mark = document.createElement('span');
     mark.className = `channel-icon ${channel}`;
@@ -49,7 +45,6 @@ export function channelMark(channel, size = 16) {
     return mark;
 }
 
-/** Replaces `<i data-brand="gmail">` placeholders in static markup with logos. */
 export function hydrateBrands(root = document) {
     for (const placeholder of root.querySelectorAll('i[data-brand]')) {
         placeholder.replaceWith(channelMark(placeholder.dataset.brand, Number(placeholder.dataset.size) || 16));

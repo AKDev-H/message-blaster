@@ -18,7 +18,6 @@ const kindOf = name => Object.keys(kinds).find(kind => kinds[kind].includes(exte
 const fileUrl = name => `/api/attachments/${encodeURIComponent(name)}`;
 
 const scripts = new Map();
-/** Loads a vendored library the first time a document needs it. */
 function loadScript(src, globalName) {
     if (window[globalName]) return Promise.resolve(window[globalName]);
     if (!scripts.has(src)) {
@@ -45,7 +44,6 @@ async function fetchFile(name, as) {
     return as === 'text' ? response.text() : response.arrayBuffer();
 }
 
-// Word documents are converted to HTML in the browser, then rebuilt from an allowlist so nothing active survives.
 const documentTags = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'blockquote', 'a', 'img']);
 

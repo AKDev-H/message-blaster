@@ -41,14 +41,14 @@ describe('Campaign dialog', () => {
 
     it('opens the field menu on {{ and inserts the chosen field', () => {
         cy.typeMessage('Hi {{cl');
-        cy.get('#mention-menu').should('be.visible').find('[role="option"]').should('have.length', 2)
+        cy.get('#mention-menu').should('be.visible').find('[role="option"]').should('have.length', 1)
             .first().should('have.attr', 'aria-selected', 'true').and('contain', 'Client name');
-        cy.get('#script-editor').type('{downArrow}{enter}');
+        cy.get('#script-editor').type('{enter}');
         cy.get('#mention-menu').should('not.be.visible');
-        cy.get('#script-editor').should('contain.text', 'Hi {{client_id}}');
+        cy.get('#script-editor').should('contain.text', 'Hi {{client_name}}');
 
         cy.get('#script-editor').type(' and {{', { parseSpecialCharSequences: false });
-        cy.get('#mention-menu [role="option"]').should('have.length', 5);
+        cy.get('#mention-menu [role="option"]').should('have.length', 4);
         cy.get('#mention-menu').contains('[role="option"]', 'Campaign name').click();
         cy.get('#script-editor').should('contain.text', 'and {{campaign_id}}');
     });
@@ -56,7 +56,7 @@ describe('Campaign dialog', () => {
     it('offers only fields shared by both channels', () => {
         cy.chooseChannels(['gmail', 'whatsapp']);
         cy.typeMessage('{{');
-        cy.get('#mention-menu [role="option"]').should('have.length', 4)
+        cy.get('#mention-menu [role="option"]').should('have.length', 3)
             .and('not.contain', 'Email address').and('not.contain', 'Phone number');
         cy.get('#script-editor').type('{esc}');
         cy.get('#mention-menu').should('not.be.visible');
@@ -84,8 +84,8 @@ describe('Campaign dialog', () => {
             name: 'both',
             channel: 'both',
             rows: [
-                { 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', 'Phone Number': '+60123456789', Subject: 'Hi', ...optedIn },
-                { 'Client ID': 'C2', 'Client Name': 'Ben', 'Email Address': 'ben@example.com', Subject: 'Hi', ...optedIn },
+                { 'Client Name': 'Ari', 'Email Address': 'ari@example.com', 'Phone Number': '+60123456789', Subject: 'Hi', ...optedIn },
+                { 'Client Name': 'Ben', 'Email Address': 'ben@example.com', Subject: 'Hi', ...optedIn },
             ],
         }).then(path => {
             cy.openComposer();
@@ -107,13 +107,48 @@ describe('Campaign dialog', () => {
         cy.get('#detail-rows').should('contain', 'sample-document.pdf');
     });
 
+    it('creates a campaign from typed-in recipients', () => {
+        cy.get('#campaign-name').type('typed');
+        cy.chooseChannels(['whatsapp']);
+        cy.contains('.segmented label', 'Type in').click();
+        cy.get('#source-excel').should('not.be.visible');
+        cy.get('#recipient-head').should('have.text', 'NamePhone');
+        cy.get('#compose-submit').click();
+        cy.get('#recipients-error').should('have.text', 'Add at least one recipient.');
+
+        cy.get('[aria-label="Name, row 1"]').type('Ari');
+        cy.get('[aria-label="Phone, row 1"]').type('+60123456789{enter}');
+        cy.get('[aria-label="Name, row 2"]').trigger('paste', {
+            clipboardData: { getData: () => 'Ben\t0123456780\nCasey\t+60198765432' },
+        });
+        cy.get('.recipient-row').should('have.length', 3);
+        cy.get('#recipient-count').should('have.text', '3 recipients');
+        cy.get('[aria-label="Remove row 3"]').click();
+        cy.get('#recipient-count').should('have.text', '2 recipients');
+
+        cy.get('[aria-label="Phone, row 2"]').clear().type('((((((');
+        cy.get('#compose-submit').click();
+        cy.get('#recipients-error').should('have.text', 'Row 2: check the phone number.');
+        cy.get('[aria-label="Phone, row 2"]').should('have.attr', 'aria-invalid', 'true').and('be.focused')
+            .clear().type('0123456780');
+
+        cy.typeMessage('Hi {{client_name}}');
+        cy.get('#compose-submit').click();
+        cy.get('#recipients-error').should('contain', 'agreed to receive');
+        cy.get('#recipient-consent').check();
+        cy.get('#compose-submit').click();
+        cy.contains('#toast', 'Campaign created');
+        cy.get('#detail-heading').should('have.text', 'typed');
+        cy.get('#detail-rows').should('contain', 'Ari').and('contain', 'Ben').and('not.contain', 'Casey');
+    });
+
     it('edits a saved draft with its channel locked', () => {
         cy.get('#compose').find('[data-close]').first().click();
         cy.importCampaign({
             name: 'editable',
             channels: ['gmail'],
             channel: 'gmail',
-            rows: [{ 'Client ID': 'C1', 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', ...optedIn }],
+            rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', ...optedIn }],
             message: 'First',
         });
         cy.get('#detail-actions').contains('button', 'Edit').click();

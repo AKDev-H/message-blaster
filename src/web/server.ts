@@ -25,11 +25,10 @@ const excelType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const scriptType = 'text/javascript; charset=utf-8';
 const fontType = 'font/woff2';
 const fonts = '../../node_modules/@fontsource-variable';
-/** Public route, file relative to this module, and content type. Vendor files are served straight from node_modules. */
 const assetPaths: readonly (readonly [string, string, string])[] = [
     ['/', '../../web/index.html', 'text/html; charset=utf-8'],
     ['/style.css', '../../web/style.css', 'text/css; charset=utf-8'],
-    ...['app', 'brands', 'campaigns', 'compose', 'confirm', 'editor', 'icons', 'settings', 'ui', 'viewer'].map(name => [`/${name}.mjs`, `../../web/${name}.mjs`, scriptType] as const),
+    ...['app', 'brands', 'campaigns', 'compose', 'confirm', 'editor', 'icons', 'recipients', 'settings', 'ui', 'viewer'].map(name => [`/${name}.mjs`, `../../web/${name}.mjs`, scriptType] as const),
     ['/vendor/lucide.js', '../../node_modules/lucide/dist/umd/lucide.min.js', scriptType],
     ['/vendor/mammoth.js', '../../node_modules/mammoth/mammoth.browser.min.js', scriptType],
     ['/vendor/exceljs.js', '../../node_modules/exceljs/dist/exceljs.min.js', scriptType],
@@ -65,7 +64,6 @@ function publicError(error: unknown): HttpError {
     return new HttpError(500, 'Something went wrong. Try again.');
 }
 
-/** Serves an attachment for the viewer. It runs in a locked-down context so uploaded files can never run script here. */
 function attachmentResponse(res: ServerResponse, name: string, data: Buffer, download: boolean) {
     const type = attachmentMimeType(name);
     const pdf = type === 'application/pdf';
@@ -127,7 +125,6 @@ export async function startWebServer(env: Environment, requestedPort = env.WEB_P
     let dirty = true;
     let closing = false;
     let broadcastQueued = false;
-    /** `.env` with dashboard-saved settings applied; read per request so changes apply immediately. */
     const settings = () => withSavedSettings(env, db);
     const runner = new WebRunner(store, settings, changed);
     const whatsapp = new WhatsAppLinker(env, () => {});

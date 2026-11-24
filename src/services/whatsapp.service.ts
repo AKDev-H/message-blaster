@@ -64,7 +64,6 @@ export class WhatsAppService implements MessageTransport {
         private readonly logger: Logger,
         private readonly onReceipt: (messageId: string, stage: ReceiptStage) => void,
         private readonly allowPairing = false,
-        /** Receives pairing QR codes instead of printing them, e.g. to show them in the dashboard. */
         private readonly onQr?: (qr: string) => void,
     ) {}
 
@@ -147,7 +146,6 @@ export class WhatsAppService implements MessageTransport {
             }
             : { text: message.text, linkPreview: null };
 
-        // An exception after invoking sendMessage may follow a successful network submission.
         const timeout = AbortSignal.timeout(SUBMISSION_TIMEOUT_MS);
         try {
             const submitted = await withAbort(
@@ -240,7 +238,6 @@ export class WhatsAppService implements MessageTransport {
     private async openSocket(auth: ReturnType<typeof openWhatsAppAuth>): Promise<{ error: unknown; opened: boolean }> {
         const socket = makeWASocket({
             auth: auth.state,
-            // Baileys debug logs and protocol errors can contain account identifiers or QR data.
             logger: this.logger.child({ service: 'baileys' }, { level: 'silent' }),
             defaultQueryTimeoutMs: 30_000,
             markOnlineOnConnect: false,
@@ -349,7 +346,6 @@ export class WhatsAppService implements MessageTransport {
             }
         });
 
-        // In this Baileys release, successful message stanza ACKs do not always emit messages.update.
         socket.ws.on('CB:ack,class:message', ({ attrs }: BinaryNode) => {
             if (attrs.id && !attrs.error) {
                 this.report({ id: attrs.id, fromMe: true }, 'ACKNOWLEDGED');

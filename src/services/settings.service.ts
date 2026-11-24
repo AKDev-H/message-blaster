@@ -2,7 +2,6 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { CountryCode } from 'libphonenumber-js';
 import type { Environment } from '../config/env.js';
 
-/** Settings the dashboard can change. Saved values override the matching `.env` entries. */
 export interface EditableSettings {
     GMAIL_USER: string;
     GMAIL_APP_PASSWORD: string;
@@ -23,7 +22,6 @@ function readSaved(db: DatabaseSync): Partial<Record<SettingKey, string>> {
     return saved;
 }
 
-/** Returns the environment with dashboard-saved settings applied on top of `.env`. */
 export function withSavedSettings<T extends Environment>(env: T, db: DatabaseSync): T {
     const saved = readSaved(db);
     return {
@@ -35,7 +33,6 @@ export function withSavedSettings<T extends Environment>(env: T, db: DatabaseSyn
     };
 }
 
-/** Saves validated settings in one transaction. */
 export function saveSettings(db: DatabaseSync, values: Partial<EditableSettings>): void {
     const upsert = db.prepare(`
         INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)

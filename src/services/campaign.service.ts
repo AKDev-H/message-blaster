@@ -32,7 +32,6 @@ export async function importCampaign(store: Store, env: Environment, id: string,
 export function campaignTemplateValues(channel: CampaignChannel, id: string, row?: ImportRow, address = '') {
     return {
         client_name: row?.clientName ?? '',
-        client_id: row?.clientId ?? '',
         ...(channel === 'gmail' ? { email_address: address } : { phone_number: address }),
         campaign_id: id,
         pdf_filename: row?.pdfFilename ?? '',
@@ -55,10 +54,7 @@ export async function prepareRows(
 ): Promise<PreparedRow[]> {
     const gmail = channel === 'gmail';
     const addressCounts = new Map<string, number>();
-    const idCounts = new Map<string, number>();
     const normalized = rows.map(row => {
-        const clientKey = row.clientId.toLowerCase();
-        if (clientKey) idCounts.set(clientKey, (idCounts.get(clientKey) ?? 0) + 1);
         try {
             const address = gmail ? normalizeEmail(row.email ?? '') : normalizePhone(row.phone, env.DEFAULT_COUNTRY);
             addressCounts.set(address, (addressCounts.get(address) ?? 0) + 1);
@@ -72,7 +68,6 @@ export async function prepareRows(
     for (const { row, address } of normalized) {
         const recipient: PreparedRow = {
             rowNumber: row.rowNumber,
-            clientId: row.clientId,
             clientName: row.clientName,
             phone: gmail ? '' : address || row.phone,
             ...(gmail ? { email: address || row.email || '', subject: row.subject ?? '' } : {}),
@@ -83,10 +78,8 @@ export async function prepareRows(
         const errors: string[] = [];
         if (row.error) errors.push(row.error);
         if (!address) errors.push(gmail ? 'Invalid email address' : 'Invalid phone number');
-        if (!row.clientId || !row.clientName) errors.push('Client ID and name are required');
-        if ((addressCounts.get(address) ?? 0) > 1 || (idCounts.get(row.clientId.toLowerCase()) ?? 0) > 1) {
-            errors.push('Duplicate recipient or client ID');
-        }
+        if (!row.clientName) errors.push('Client name is required');
+        if ((addressCounts.get(address) ?? 0) > 1) errors.push('Duplicate recipient');
         if (row.consentStatus.toLowerCase() !== 'opted in') errors.push('Consent is required');
         if (address && store.isWithdrawn(address, channel)) errors.push('Consent withdrawn');
         if (errors.length === 0) {
@@ -162,7 +155,6 @@ export function exportCampaignWorkbook(store: Store, id: string): Promise<Buffer
 
 function exportRows(store: Store, id: string, channel: CampaignChannel) {
     return store.listMessages(id).map(row => ({
-        clientId: row.clientId,
         clientName: row.clientName,
         phone: row.phone,
         message: row.message,

@@ -1,4 +1,3 @@
-// The browser request is stubbed, so these specs never call Groq.
 describe('AI writing', () => {
     beforeEach(() => {
         cy.openDashboard();

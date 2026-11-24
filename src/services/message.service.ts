@@ -4,7 +4,6 @@ import { CAMPAIGN_CHANNEL_LABELS, MESSAGE_STATUSES, type CampaignChannel, type C
 
 export interface PreparedRow {
     rowNumber: number;
-    clientId: string;
     clientName: string;
     phone: string;
     email?: string;
@@ -147,7 +146,6 @@ function messageRecord(row: SqlRow): MessageRecord {
         id: Number(row.id),
         campaignId: String(row.campaign_id),
         rowNumber: Number(row.row_number),
-        clientId: String(row.client_id),
         clientName: String(row.client_name),
         phone: row.channel === 'gmail' ? '' : String(row.recipient),
         ...(row.channel === 'gmail' ? { email: String(row.recipient), subject: String(row.subject) } : {}),
@@ -191,7 +189,6 @@ export class Store {
         return transaction(this.db, () => this.insertCampaign(id, rows, isTest, channel, draft));
     }
 
-    /** Imports several campaigns together: either all of them are created or none are. */
     importCampaigns(campaigns: readonly { id: string; rows: PreparedRow[]; channel: CampaignChannel; draft?: WebDraft }[]): Campaign[] {
         return transaction(this.db, () => campaigns.map(({ id, rows, channel, draft }) => this.insertCampaign(id, rows, false, channel, draft)));
     }
@@ -218,23 +215,20 @@ export class Store {
         `);
         const withdrawn = this.db.prepare('SELECT 1 FROM consent_withdrawals WHERE recipient = ? AND channel = ?');
         const acceptedRecipients = new Set<string>();
-        const acceptedClientIds = new Set<string>();
         for (const row of rows) {
             let error = row.error ?? null;
-            const clientKey = row.clientId.toLowerCase();
             const recipient = channel === 'gmail' ? row.email ?? '' : row.phone;
             if (!error && row.consentStatus.trim().toLowerCase() !== 'opted in') error = 'Consent is required';
             if (!error && !recipient) error = channel === 'gmail' ? 'Invalid email address' : 'Invalid phone number';
             if (!error && withdrawn.get(recipient, channel)) error = withdrawalError;
-            if (!error && (acceptedRecipients.has(recipient) || acceptedClientIds.has(clientKey))) {
-                error = 'Duplicate recipient or client ID';
+            if (!error && acceptedRecipients.has(recipient)) {
+                error = 'Duplicate recipient';
             }
             if (!error) {
                 acceptedRecipients.add(recipient);
-                acceptedClientIds.add(clientKey);
             }
             insert.run(
-                id, row.rowNumber, row.clientId, row.clientName, recipient, row.subject ?? '', row.message, row.pdfFilename,
+                id, row.rowNumber, '', row.clientName, recipient, row.subject ?? '', row.message, row.pdfFilename,
                 row.consentStatus, row.attachmentHash ?? null, error, Number(error === null),
                 error ? 'SKIPPED' : 'PENDING', error, channel === 'gmail' ? row.messageHtml ?? null : null,
             );

@@ -1,4 +1,5 @@
 import { createEditor } from './editor.mjs';
+import { createRecipientList } from './recipients.mjs';
 import { button, campaignPath, element, formFeedback, get, number, request, setError, toast } from './ui.mjs';
 
 const maxFileBytes = 10 * 1024 * 1024;
@@ -6,26 +7,23 @@ const namePattern = /^[a-z0-9][a-z0-9_-]{0,63}$/iu;
 const channelLabels = { gmail: 'Gmail', whatsapp: 'WhatsApp' };
 const scriptLimits = { gmail: 32767, whatsapp: 4096 };
 const variableLabels = {
-    client_name: 'Client name', client_id: 'Client ID', email_address: 'Email address',
+    client_name: 'Client name', email_address: 'Email address',
     phone_number: 'Phone number', campaign_id: 'Campaign name', pdf_filename: 'Attachment name',
 };
 const variablesByChannel = {
-    gmail: ['client_name', 'client_id', 'email_address', 'campaign_id', 'pdf_filename'],
-    whatsapp: ['client_name', 'client_id', 'phone_number', 'campaign_id', 'pdf_filename'],
+    gmail: ['client_name', 'email_address', 'campaign_id', 'pdf_filename'],
+    whatsapp: ['client_name', 'phone_number', 'campaign_id', 'pdf_filename'],
 };
 
-/** Fields usable in every selected channel, so a single script personalizes correctly everywhere. */
 function sharedVariables(channels) {
     if (!channels.length) return [];
     return variablesByChannel[channels[0]].filter(token => channels.every(channel => variablesByChannel[channel].includes(token)));
 }
 
-/** Campaign names created for a send; two channels produce one suffixed campaign each. */
 function campaignNames(name, channels) {
     return channels.length > 1 ? channels.map(channel => `${name}-${channel}`) : [name];
 }
 
-/** Checks an upload. Attachments may be any format; the server rejects blocked types such as programs. */
 function fileError(file, extension, required) {
     if (!file) return required ? `Choose a ${extension ? 'workbook' : 'file'}.` : '';
     if (extension && !file.name.toLowerCase().endsWith(extension)) return `Choose a file ending in ${extension}.`;
@@ -51,7 +49,6 @@ function fileSize(bytes) {
     return `${number.format(Math.round(bytes / 1024 ** 2 * 10) / 10)} MB`;
 }
 
-/** File-type label for the library list, e.g. PDF, DOCX, PNG. */
 const fileKind = name => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toUpperCase().slice(0, 4) : 'FILE');
 
 export function createComposer(onSaved, viewer) {
@@ -64,10 +61,13 @@ export function createComposer(onSaved, viewer) {
     const editor = createEditor(script, () => sharedVariables(selectedChannels())
         .map(token => ({ token, label: variableLabels[token] })));
     const controls = {
-        id: field('id'), channel: channelInputs[0], workbook: field('workbook'),
+        id: field('id'), channel: channelInputs[0], workbook: field('workbook'), recipients: get('recipient-table'),
         subject: field('subject'), script, attachment: field('attachment'),
     };
     const feedback = formFeedback(controls, 'compose-error');
+    const sourceInputs = [...form.querySelectorAll('input[name="recipientSource"]')];
+    const recipients = createRecipientList(selectedChannels, message => feedback.show('recipients', message));
+    const typing = () => sourceInputs.some(input => input.checked && input.value === 'typed');
     let editingId = '';
     let files = [];
     let attachmentRevision = 0;
@@ -86,7 +86,8 @@ export function createComposer(onSaved, viewer) {
             errors.channel = 'Choose at least one channel.';
             return { errors, text, html };
         }
-        errors.workbook = fileError(controls.workbook.files[0], '.xlsx', !editingId);
+        if (typing()) errors.recipients = recipients.error(Boolean(editingId));
+        else errors.workbook = fileError(controls.workbook.files[0], '.xlsx', !editingId);
         if (channels.includes('gmail')) {
             const subject = controls.subject.value;
             errors.subject = subject.length > 255 ? 'Use 255 characters or fewer.' : templateError(subject, ['gmail']);
@@ -164,8 +165,20 @@ export function createComposer(onSaved, viewer) {
         get('template-download').href = `/api/template?channel=${both ? 'both' : channels[0] ?? 'gmail'}`;
         get('template-download').lastElementChild.textContent = both ? 'Download combined template' : 'Download Excel template';
         get('subject-field').hidden = !channels.includes('gmail');
+        recipients.render();
         editor.setChannels(channels);
         syncNames();
+    }
+
+    function syncSource() {
+        const typed = typing();
+        get('source-excel').hidden = typed;
+        get('source-typed').hidden = !typed;
+        controls.workbook.required = !typed && !editingId;
+        get('recipients-help').textContent = editingId
+            ? 'Leave empty to keep the current recipients.'
+            : 'Tip: paste rows straight from a spreadsheet.';
+        for (const name of ['workbook', 'recipients']) feedback.show(name, '');
     }
 
     function syncNames() {
@@ -191,7 +204,8 @@ export function createComposer(onSaved, viewer) {
             input.checked = editing ? input.value === campaign.channel : input.value === 'gmail';
             input.disabled = editing;
         }
-        controls.workbook.required = !editing;
+        recipients.reset();
+        syncSource();
         controls.subject.value = draft?.subject ?? '';
         renderAttachments(draft?.attachment ?? '');
         syncChannels();
@@ -210,13 +224,25 @@ export function createComposer(onSaved, viewer) {
         if (submit.disabled) return;
         setError('compose-error', '');
         const { errors, text, html } = validate();
-        if (!feedback.validate(errors)) return;
+        if (!feedback.validate(errors)) {
+            if (Object.keys(controls).find(name => errors[name]) === 'recipients') recipients.focusProblem(Boolean(editingId));
+            return;
+        }
 
         const data = new FormData(form);
         data.set('script', text);
         data.set('scriptHtml', html);
         data.set('id', controls.id.value.trim());
-        if (!controls.workbook.files.length) data.delete('workbook');
+        data.delete('recipientSource');
+        if (typing()) {
+            data.delete('workbook');
+            if (recipients.hasEntries()) {
+                data.set('recipients', recipients.payload());
+                data.set('recipientsConsent', 'yes');
+            }
+        } else if (!controls.workbook.files.length) {
+            data.delete('workbook');
+        }
         if (editingId) {
             data.delete('id');
             data.delete('channel');
@@ -241,7 +267,6 @@ export function createComposer(onSaved, viewer) {
         }
     }
 
-    /** Asks the AI service to write (or rewrite) the fallback subject and message using the shared fields. */
     async function generate() {
         const prompt = get('ai-prompt');
         const trigger = get('ai-generate');
@@ -303,6 +328,12 @@ export function createComposer(onSaved, viewer) {
             for (const name of ['channel', 'id', 'subject', 'script']) revalidate(name, controls[name]);
         });
     }
+    for (const input of sourceInputs) {
+        input.addEventListener('change', () => {
+            syncSource();
+            if (typing()) get('recipient-rows').querySelector('input')?.focus();
+        });
+    }
     controls.id.addEventListener('input', syncNames);
     script.addEventListener('input', syncAiLabel);
     get('ai-generate').addEventListener('click', generate);
@@ -332,7 +363,6 @@ export function createComposer(onSaved, viewer) {
     form.addEventListener('submit', save);
     return {
         open,
-        /** Shows AI writing only when the server has an API key configured. */
         setAiAvailable(available) {
             get('ai-bar').hidden = !available;
         },

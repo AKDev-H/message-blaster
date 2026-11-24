@@ -9,7 +9,7 @@ function reply(content: unknown, status = 200): typeof fetch {
 }
 
 test('shared variables exclude channel-specific addresses when sending to both channels', () => {
-    assert.deepEqual(sharedVariables(['gmail', 'whatsapp']), ['client_name', 'client_id', 'campaign_id', 'pdf_filename']);
+    assert.deepEqual(sharedVariables(['gmail', 'whatsapp']), ['client_name', 'campaign_id', 'pdf_filename']);
     assert.ok(sharedVariables(['whatsapp']).includes('phone_number'));
 });
 

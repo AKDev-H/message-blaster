@@ -11,7 +11,6 @@ export function element(tag, className, text) {
     return node;
 }
 
-/** Puts an optional leading icon before the label, wrapping the label so icon-only layouts can hide it. */
 function withIcon(node, text, iconName) {
     if (iconName) node.append(icon(iconName));
     node.append(element('span', 'label', text));

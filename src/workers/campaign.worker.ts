@@ -56,7 +56,6 @@ export async function runCampaign(
                 await pause(pacingWait, signal);
                 continue;
             }
-            // Prepare the PDF before claiming to keep file I/O outside the submission attempt.
             const result = await preparePayload(candidate, settings.ATTACHMENTS_DIR);
             if (signal.aborted) break;
             if (!transport.isReady) continue;
@@ -69,7 +68,6 @@ export async function runCampaign(
                 continue;
             }
             if (!store.canSubmit(claimed.id)) {
-                // The store converts this to SKIPPED if consent was withdrawn or the campaign was cancelled.
                 store.finish(claimed.id, 'RETRY', 'Campaign paused before submission', Date.now());
                 continue;
             }

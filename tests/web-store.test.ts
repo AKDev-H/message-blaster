@@ -6,7 +6,6 @@ import { Store, type PreparedRow, type WebDraft } from '../src/services/message.
 function row(rowNumber: number, overrides: Partial<PreparedRow> = {}): PreparedRow {
     return {
         rowNumber,
-        clientId: `contact-${rowNumber}`,
         clientName: `Client ${rowNumber}`,
         phone: `+6012345000${rowNumber}`,
         message: 'Hello',

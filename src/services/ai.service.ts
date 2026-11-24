@@ -5,15 +5,13 @@ import { cleanScriptHtml, scriptText } from './rich-script.js';
 const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 const timeoutMs = 30_000;
 
-/** Personalization fields each channel can fill in. Keep in sync with `campaignTemplateValues`. */
 export const CHANNEL_VARIABLES: Record<CampaignChannel, readonly string[]> = {
-    gmail: ['client_name', 'client_id', 'email_address', 'campaign_id', 'pdf_filename'],
-    whatsapp: ['client_name', 'client_id', 'phone_number', 'campaign_id', 'pdf_filename'],
+    gmail: ['client_name', 'email_address', 'campaign_id', 'pdf_filename'],
+    whatsapp: ['client_name', 'phone_number', 'campaign_id', 'pdf_filename'],
 };
 
 const variableMeaning: Record<string, string> = {
     client_name: 'the recipient’s name',
-    client_id: 'the recipient’s client ID',
     email_address: 'the recipient’s email address',
     phone_number: 'the recipient’s phone number',
     campaign_id: 'the campaign name',
@@ -45,7 +43,6 @@ export interface GeneratedDraft {
     text: string;
 }
 
-/** Fields usable in every chosen channel, so one draft personalizes correctly everywhere. */
 export function sharedVariables(channels: readonly CampaignChannel[]): string[] {
     const [first, ...rest] = channels;
     if (!first) return [];
@@ -70,7 +67,6 @@ function instructions(channels: readonly CampaignChannel[], variables: readonly 
     ].join('\n');
 }
 
-/** Removes placeholders the model invented, so a draft never fails campaign validation. */
 function keepKnownVariables(value: string, variables: readonly string[]): string {
     return value.replaceAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/gu, (_match: string, name: string) =>
         variables.includes(name) ? `{{${name}}}` : '');

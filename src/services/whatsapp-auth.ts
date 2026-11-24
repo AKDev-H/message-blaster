@@ -44,7 +44,6 @@ function privateDatabase(path: string): DatabaseSync {
     return new DatabaseSync(path);
 }
 
-/** The operating system releases the SQLite write lock if this process exits. */
 export function acquireWhatsAppLease(path: string, busyMessage: string): DatabaseSync {
     const db = privateDatabase(join(privateDirectory(dirname(path)), basename(path)));
     try {

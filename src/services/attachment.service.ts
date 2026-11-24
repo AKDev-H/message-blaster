@@ -7,7 +7,6 @@ import { PDFDocument } from 'pdf-lib';
 export type AttachmentErrorCode = 'UNSAFE_PATH' | 'BLOCKED_TYPE' | 'EMPTY_ATTACHMENT' | 'MISSING_ATTACHMENT' | 'INVALID_PDF'
     | 'UNREADABLE_ATTACHMENT';
 
-/** File types Gmail refuses to send (and that are risky to forward), so they are never accepted as attachments. */
 const blockedExtensions = new Set([
     '.ade', '.adp', '.apk', '.appx', '.appxbundle', '.bat', '.cab', '.chm', '.cmd', '.com', '.cpl', '.diagcab', '.diagcfg',
     '.diagpkg', '.dll', '.dmg', '.ex', '.ex_', '.exe', '.hta', '.ins', '.isp', '.iso', '.jar', '.jnlp', '.js', '.jse', '.lib',
@@ -47,7 +46,6 @@ export function attachmentMimeType(name: string): string {
     return mimeTypes[extname(name).toLowerCase()] ?? 'application/octet-stream';
 }
 
-/** True for a plain file name with an extension that is not on the blocked list. */
 export function isAllowedAttachmentName(name: string): boolean {
     const extension = extname(name).toLowerCase();
     return name.length <= 255 && name === name.trim() && extension.length > 1 && extension !== name.toLowerCase() &&
@@ -113,7 +111,6 @@ export async function readAttachment(directory: string, name: string): Promise<A
     return { name, data, sha256: createHash('sha256').update(data).digest('hex') };
 }
 
-/** PDFs get a structural check because a corrupt PDF is a common, silent delivery failure. */
 async function validatePdf(data: Buffer): Promise<void> {
     const header = data.subarray(0, 10).toString('latin1');
     const eof = data.lastIndexOf('%%EOF');

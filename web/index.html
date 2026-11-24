@@ -164,16 +164,35 @@
                     </fieldset>
                     <div class="field">
                         <div class="label-row">
-                            <span>Recipients</span>
+                            <span id="recipients-label">Recipients</span>
+                            <div class="segmented" role="radiogroup" aria-labelledby="recipients-label">
+                                <label><input type="radio" name="recipientSource" value="excel" checked><span>Excel</span></label>
+                                <label><input type="radio" name="recipientSource" value="typed"><span>Type in</span></label>
+                            </div>
+                        </div>
+                        <div class="recipient-source" id="source-excel">
+                            <label class="upload-field">
+                                <i data-icon="upload"></i>
+                                <strong id="workbook-label">Choose an Excel workbook</strong>
+                                <span class="upload-type" aria-hidden="true">.xlsx</span>
+                                <input name="workbook" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required aria-describedby="workbook-error">
+                            </label>
+                            <p class="field-error" id="workbook-error" aria-live="polite" hidden></p>
                             <a id="template-download" class="text-link" href="/api/template?channel=gmail" download><i data-icon="file-spreadsheet" data-size="14"></i><span>Download Excel template</span></a>
                         </div>
-                        <label class="upload-field">
-                            <i data-icon="upload"></i>
-                            <strong id="workbook-label">Choose an Excel workbook</strong>
-                            <span class="upload-type" aria-hidden="true">.xlsx</span>
-                            <input name="workbook" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required aria-describedby="workbook-error">
-                        </label>
-                        <p class="field-error" id="workbook-error" aria-live="polite" hidden></p>
+                        <div class="recipient-source" id="source-typed" hidden>
+                            <div class="recipient-table" id="recipient-table" tabindex="-1" role="group" aria-labelledby="recipients-label" aria-describedby="recipients-help recipients-error">
+                                <div class="recipient-head" id="recipient-head" aria-hidden="true"></div>
+                                <div class="recipient-rows" id="recipient-rows"></div>
+                                <div class="recipient-foot">
+                                    <button type="button" class="text-link" id="recipient-add"><i data-icon="plus" data-size="14"></i><span>Add recipient</span></button>
+                                    <output class="recipient-count" id="recipient-count"></output>
+                                </div>
+                            </div>
+                            <label class="consent-check"><input type="checkbox" id="recipient-consent"><span>Everyone listed agreed to receive these messages</span></label>
+                            <p class="field-help" id="recipients-help">Tip: paste rows straight from a spreadsheet.</p>
+                            <p class="field-error" id="recipients-error" aria-live="polite" hidden></p>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="campaign-attachment">Attachment</label>

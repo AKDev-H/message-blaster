@@ -3,7 +3,6 @@ import { formFeedback, get, request, setError, toast } from './ui.mjs';
 const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
 const pollMs = 2_000;
 
-/** Settings dialog: Gmail sender, WhatsApp linking and sending preferences, each saved independently. */
 export function createSettings() {
     const dialog = get('settings');
     const tabs = [...dialog.querySelectorAll('[role="tab"]')];

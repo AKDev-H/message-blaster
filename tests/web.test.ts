@@ -98,7 +98,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
         using db = openDatabase(env.DATABASE_URL);
         const store = new Store(db);
         store.importCampaign('test-setup', [{
-            rowNumber: 1, clientId: 'test', clientName: 'Test', phone: '', email: 'test@example.com',
+            rowNumber: 1, clientName: 'Test', phone: '', email: 'test@example.com',
             subject: 'Test', message: 'Test', pdfFilename: '', consentStatus: 'Opted In',
         }], true, 'gmail');
         store.bindAccount('test-setup', 'gmail:sender@example.com');
@@ -135,12 +135,12 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await sample.arrayBuffer());
     const sheet = workbook.worksheets[0]!;
-    assert.equal(sheet.getCell('C1').value, 'Email Address');
-    assert.equal(sheet.getCell('F1').value, 'Attachment');
+    assert.equal(sheet.getCell('B1').value, 'Email Address');
+    assert.equal(sheet.getCell('E1').value, 'Attachment');
     assert.equal(sheet.actualRowCount, 1, 'the dashboard template has headers only');
-    sheet.addRow(['C1', 'Ari', 'ari@example.com', '', '', '', 'Opted In']);
-    sheet.addRow(['C2', 'Ben', 'retry@example.com', '', '', '', 'Opted In']);
-    sheet.addRow(['C3', 'Casey', 'casey@example.com', '', '', '', 'Opted In']);
+    sheet.addRow(['Ari', 'ari@example.com', '', '', '', 'Opted In']);
+    sheet.addRow(['Ben', 'retry@example.com', '', '', '', 'Opted In']);
+    sheet.addRow(['Casey', 'casey@example.com', '', '', '', 'Opted In']);
 
     const pdf = new FormData();
     pdf.set('file', new Blob([Uint8Array.from(await readFile('tests/fixtures/sample-document.pdf'))]), 'sales.pdf');
@@ -232,8 +232,8 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     const headers = (combinedSheet.getRow(1).values as unknown[]).filter(Boolean);
     assert.ok(headers.includes('Email Address') && headers.includes('Phone Number'));
     assert.equal(combinedSheet.actualRowCount, 1);
-    combinedSheet.addRow(['C1', 'Ari', 'ari@example.com', '+60123456789', 'Hello', '', '', 'Opted In']);
-    combinedSheet.addRow(['C2', 'Ben', 'ben@example.com', '', 'Hello', '', '', 'Opted In']);
+    combinedSheet.addRow(['Ari', 'ari@example.com', '+60123456789', 'Hello', '', '', 'Opted In']);
+    combinedSheet.addRow(['Ben', 'ben@example.com', '', 'Hello', '', '', 'Opted In']);
     const both = new FormData();
     both.set('id', 'launch');
     both.append('channel', 'gmail');
@@ -248,14 +248,12 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal(whatsapp.campaign.total, 1);
     assert.equal(whatsapp.rows[0].message, 'Hi Ari');
 
-    // A duplicate in either channel rejects the whole multi-channel import.
     both.set('id', 'launch');
     assert.equal((await request('/api/campaigns', { method: 'POST', body: both })).status, 409);
     both.delete('channel');
     const missing = await request('/api/campaigns', { method: 'POST', body: both });
     assert.equal((await missing.json()).field, 'channel');
 
-    // Settings: saved values apply immediately and the App Password is never returned.
     const put = (path: string, body: unknown) => request(path, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -270,7 +268,6 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal(sending.whatsapp.status, 'unlinked');
     assert.equal((await (await put('/api/settings/sending', { country: 'XX', delaySeconds: 1 })).json()).field, 'country');
 
-    // Attachments: any common format uploads and is served for the viewer; programs are refused.
     const note = new FormData();
     note.set('file', new Blob(['Quarterly notes']), 'notes.txt');
     assert.equal((await request('/api/attachments', { method: 'POST', body: note })).status, 201);
