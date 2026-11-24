@@ -19,31 +19,18 @@ export const DEFAULT_SETTINGS: Readonly<AppSettings> = {
 };
 
 const configDir = () => process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config');
+const isUrl = (path: string) => /^[a-z][a-z0-9+.-]*:\/\//i.test(path);
+const isLocalPath = (path: string) => path !== ':memory:' && !isUrl(path);
+const expandHome = (path: string) => (path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path);
 
 const integer = (min: number, max: number, fallback: number) =>
-    z
-        .string()
-        .regex(/^\d+$/)
-        .transform(Number)
-        .pipe(z.number().int().min(min).max(max))
-        .default(fallback);
+    z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max)).default(fallback);
+
 const boolean = (fallback: boolean) =>
-    z
-        .enum(['true', 'false'])
-        .transform((value) => value === 'true')
-        .default(fallback);
+    z.enum(['true', 'false']).transform(value => value === 'true').default(fallback);
+
 const localPath = (fallback: string) =>
-    z
-        .string()
-        .trim()
-        .min(1)
-        .refine(
-            (path) =>
-                path !== ':memory:' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(path),
-            'Use a local filesystem path',
-        )
-        .transform((path) => (path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path))
-        .default(fallback);
+    z.string().trim().min(1).refine(isLocalPath, 'Use a local filesystem path').transform(expandHome).default(fallback);
 
 const schema = z.object({
     DATABASE_URL: localPath('./storage/app.db'),
@@ -62,9 +49,7 @@ const schema = z.object({
     RECEIPT_WAIT_MS: integer(0, 300_000, 5_000),
     WEB_PORT: integer(1, 65_535, 3_000),
     DRY_RUN: boolean(true),
-    LOG_LEVEL: z
-        .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-        .default('info'),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
 export type BaseEnvironment = z.output<typeof schema>;
@@ -73,12 +58,10 @@ export type Environment = BaseEnvironment & AppSettings;
 export function loadEnv(): BaseEnvironment {
     config({ quiet: true });
     const result = schema.safeParse(process.env);
-    if (!result.success) {
-        throw new Error(
-            result.error.issues
-                .map((issue) => `${issue.path.join('.')} — ${issue.message}`)
-                .join('\n'),
-        );
-    }
+    if (!result.success) throw new Error(describeIssues(result.error.issues));
     return result.data;
+}
+
+function describeIssues(issues: readonly z.core.$ZodIssue[]): string {
+    return issues.map(issue => `${issue.path.join('.')} — ${issue.message}`).join('\n');
 }

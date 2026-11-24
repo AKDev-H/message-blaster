@@ -165,12 +165,24 @@ npm run cy:open    # Cypress, interactive
 
 ```
 src/
-  database/   SQLite connection + migrations
-  services/   campaign, message queue, gmail, whatsapp, excel, attachments, ai
-  workers/    campaign worker
-  web/        dashboard server
-web/          dashboard frontend
+  cli/          one file per group of CLI commands
+  database/     SQLite connection, transactions, migrations
+  store/        everything saved about campaigns: Store class + one module per area
+  services/     campaign/, excel/, whatsapp/, gmail, attachments, settings, ai
+  workers/      the campaign send loop and payload preparation
+  web/          dashboard server: http helpers, live updates, input/ parsing, routes/
+  errors.ts     NotFoundError / ConflictError, mapped to HTTP 404 / 409
+web/            dashboard frontend
+  shared/       DOM and request helpers, icons, labels
+  campaigns/    campaign table, details panel, action buttons
+  compose/      new/edit campaign dialog, recipients, attachments, AI writer
+  editor/       message editor and placeholder menu
+  settings/     settings dialog, Gmail/WhatsApp/test-send panels
+  viewer/       attachment preview
+  dialogs/      confirmation dialog
 ```
+
+Functions are kept short (a few lines) and named for what they do, so a file reads top to bottom: the exported entry point first, then the steps it calls.
 
 ## Privacy
 

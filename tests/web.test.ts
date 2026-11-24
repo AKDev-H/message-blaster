@@ -8,7 +8,7 @@ import { setTimeout } from 'node:timers/promises';
 import ExcelJS from 'exceljs';
 import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
-import { Store } from '../src/services/message.service.js';
+import { Store } from '../src/store/index.js';
 import { saveSettings } from '../src/services/settings.service.js';
 import { startWebServer } from '../src/web/server.js';
 
@@ -214,7 +214,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal(cancelled.campaign.state, 'Cancelled');
     assert.equal(cancelled.campaign.skipped, 3);
 
-    for (const asset of ['/campaigns.mjs', '/compose.mjs', '/confirm.mjs', '/editor.mjs', '/ui.mjs']) {
+    for (const asset of ['/campaigns/queue.mjs', '/compose/composer.mjs', '/dialogs/confirm.mjs', '/editor/editor.mjs', '/shared/ui.mjs']) {
         assert.equal((await request(asset)).status, 200, asset);
     }
 

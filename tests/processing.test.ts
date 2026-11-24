@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import pino from 'pino';
 import { backupDatabase, openDatabase } from '../src/database/connection.js';
-import { prepareRows } from '../src/services/campaign.service.js';
-import type { ImportRow } from '../src/services/excel.service.js';
-import { Store, type PreparedRow } from '../src/services/message.service.js';
+import { prepareRows } from '../src/services/campaign/prepare-rows.js';
+import type { ImportRow } from '../src/services/excel/columns.js';
+import { Store, type PreparedRow } from '../src/store/index.js';
 import type { MessageTransport } from '../src/types/index.js';
 import { runCampaign } from '../src/workers/campaign.worker.js';
 

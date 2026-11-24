@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import ExcelJS from 'exceljs';
 import { AttachmentError, readAttachment } from '../src/services/attachment.service.js';
-import { generateExcel, readExcel, writeExcel } from '../src/services/excel.service.js';
+import { readExcel } from '../src/services/excel/read.js';
+import { generateExcel } from '../src/services/excel/template.js';
+import { writeExcel } from '../src/services/excel/write.js';
 import { normalizePhone } from '../src/utils/phone.util.js';
 import { renderTemplate } from '../src/utils/template.util.js';
 

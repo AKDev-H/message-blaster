@@ -9,10 +9,11 @@ import nodemailer, { type SendMailOptions } from 'nodemailer';
 import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { initialMigration } from '../src/database/migrations/001-initial.js';
-import { exportCampaign, importCampaign } from '../src/services/campaign.service.js';
-import { generateExcel } from '../src/services/excel.service.js';
+import { exportCampaign } from '../src/services/campaign/export.js';
+import { importCampaign } from '../src/services/campaign/import.js';
+import { generateExcel } from '../src/services/excel/template.js';
 import { runLiveCampaign } from '../src/services/live-campaign.service.js';
-import { Store } from '../src/services/message.service.js';
+import { Store } from '../src/store/index.js';
 
 test('Gmail import and approved SMTP runs share the campaign queue and track acceptance', async context => {
     const dir = await mkdtemp(join(tmpdir(), 'gmail-campaign-'));
