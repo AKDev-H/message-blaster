@@ -38,8 +38,8 @@ async function watchProgress(url: string, cleanup: (callback: () => void) => voi
                 const data = buffer.slice(0, boundary).split('\n').find(line => line.startsWith('data: '));
                 buffer = buffer.slice(boundary + 2);
                 if (data) {
-                    const { campaigns } = JSON.parse(data.slice(6)) as { campaigns: CampaignProgress[] };
-                    const campaign = campaigns.find(item => item.id === 'outreach');
+                    const response = await fetch(`${url}/api/campaigns/outreach`);
+                    const campaign = response.ok ? ((await response.json()) as { campaign: CampaignProgress }).campaign : undefined;
                     if (campaign && match(campaign)) return campaign;
                 }
                 continue;

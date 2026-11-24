@@ -105,6 +105,7 @@ async function responseError(response) {
     const body = await response.json().catch(() => null);
     const error = new Error(body?.error || 'Could not complete this action. Try again.');
     error.field = body?.field;
+    error.status = response.status;
     return error;
 }
 

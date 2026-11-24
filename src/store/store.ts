@@ -41,6 +41,14 @@ export class Store {
         return campaigns.getCampaignSummary(this.db, id);
     }
 
+    listCampaignPage(query: campaigns.CampaignQuery): campaigns.CampaignPage {
+        return campaigns.listCampaignPage(this.db, query);
+    }
+
+    listActiveCampaignIds(): string[] {
+        return campaigns.listActiveCampaignIds(this.db);
+    }
+
     listCampaignSummaries(): CampaignSummary[] {
         return campaigns.listCampaignSummaries(this.db);
     }

@@ -9,6 +9,7 @@
     <link rel="alternate icon" href="/favicon.ico">
     <link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/brand.css">
     <link rel="stylesheet" href="/style.css">
     <script src="/vendor/lucide.js"></script>
     <script type="module" src="/app.mjs"></script>
@@ -39,7 +40,7 @@
     <main id="main" tabindex="-1">
         <section class="overview" aria-labelledby="page-title">
             <h1 id="page-title">Campaigns</h1>
-            <p class="overview-count" id="campaign-count" aria-live="polite">Loading…</p>
+            <p class="overview-count" id="campaign-count" aria-live="polite"><span class="skeleton skeleton-text" aria-hidden="true"></span><span class="visually-hidden">Loading campaigns</span></p>
         </section>
 
         <section class="panel" id="queue" aria-labelledby="queue-heading">
@@ -64,9 +65,12 @@
                     </button>
                 </div>
                 <div class="toolbar-end">
-                    <div class="channel-toggles" id="channel-toggles" role="group" aria-label="Filter campaigns by channel">
-                        <button type="button" class="channel-toggle" data-channel="gmail" aria-pressed="false"><i data-brand="gmail" data-size="14"></i><span>Gmail</span></button>
-                        <button type="button" class="channel-toggle" data-channel="whatsapp" aria-pressed="false"><i data-brand="whatsapp" data-size="14"></i><span>WhatsApp</span></button>
+                    <div class="filter-group" role="group" aria-labelledby="channel-filter-label">
+                        <span class="filter-label" id="channel-filter-label"><i data-icon="list-filter" data-size="14"></i>Filter By</span>
+                        <div class="channel-toggles" id="channel-toggles">
+                            <button type="button" class="channel-toggle" data-channel="gmail" aria-pressed="false"><i data-brand="gmail" data-size="14"></i><span>Gmail</span></button>
+                            <button type="button" class="channel-toggle" data-channel="whatsapp" aria-pressed="false"><i data-brand="whatsapp" data-size="14"></i><span>WhatsApp</span></button>
+                        </div>
                     </div>
                     <details class="menu" id="template-menu">
                         <summary class="button secondary small" aria-label="Download an Excel template"><i data-icon="file-spreadsheet"></i><span class="menu-label">Template</span><i data-icon="chevron-down" data-size="14"></i></summary>
@@ -78,7 +82,7 @@
                     </details>
                 </div>
             </header>
-            <div class="table-wrap" id="campaign-table" hidden>
+            <div class="table-wrap" id="campaign-table">
                 <table>
                     <thead>
                         <tr>
@@ -86,13 +90,22 @@
                             <th scope="col">Updated</th><th scope="col"><span class="visually-hidden">Details</span></th>
                         </tr>
                     </thead>
-                    <tbody id="campaign-rows"></tbody>
+                    <tbody id="campaign-rows" aria-busy="true"></tbody>
                 </table>
             </div>
+            <footer class="pagination campaign-pagination" id="campaign-pagination" hidden>
+                <span class="pagination-range" id="campaign-range"></span>
+                <nav class="page-buttons" aria-label="Campaign pages">
+                    <button class="icon-button" id="campaign-previous" type="button" aria-label="Previous page of campaigns"><i data-icon="chevron-left"></i></button>
+                    <span class="page-list" id="campaign-pages"></span>
+                    <button class="icon-button" id="campaign-next" type="button" aria-label="Next page of campaigns"><i data-icon="chevron-right"></i></button>
+                </nav>
+            </footer>
             <div class="empty" id="campaign-empty" hidden>
+                <span class="empty-icon" id="empty-icon" aria-hidden="true"><i data-icon="megaphone" data-size="22"></i></span>
                 <h3 id="empty-heading">No campaigns yet</h3>
                 <p id="empty-copy">Import an Excel workbook to get started.</p>
-                <button type="button" class="button secondary" id="empty-action">New campaign</button>
+                <button type="button" class="button secondary" id="empty-action"><i data-icon="plus"></i><span id="empty-action-label">New campaign</span></button>
             </div>
         </section>
 

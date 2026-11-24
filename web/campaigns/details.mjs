@@ -13,7 +13,7 @@ export class CampaignDetails {
     #page = 1;
     #detail = null;
     #pendingRequest = null;
-    #overview = { campaigns: [], dryRun: true };
+    #overview = { active: [], dryRun: true };
 
     constructor(on) {
         this.on = on;
@@ -43,13 +43,10 @@ export class CampaignDetails {
         this.#panel.hidden = true;
     }
 
-    update(overview, changed) {
+    /** Takes the dashboard-wide state; the campaign itself is re-read from the server on each live update. */
+    update(overview) {
         this.#overview = overview;
-        if (!this.#selected) return;
-        const current = overview.campaigns.find(campaign => campaign.id === this.#selected);
-        if (!current) this.#closeBecauseDeleted();
-        else if (changed(current)) this.reload();
-        else if (this.#detail) this.#renderHeader();
+        if (this.#detail) this.#renderHeader();
     }
 
     async reload() {
@@ -60,7 +57,9 @@ export class CampaignDetails {
         try {
             this.#show(await request(`${campaignPath(this.#selected)}?page=${this.#page}`, { signal: loading.signal }), loading);
         } catch (error) {
-            if (error.name !== 'AbortError' && this.#pendingRequest === loading) this.#showLoadError(error);
+            if (error.name === 'AbortError' || this.#pendingRequest !== loading) return;
+            if (error.status === 404) this.#closeBecauseDeleted();
+            else this.#showLoadError(error);
         }
     }
 
@@ -82,8 +81,9 @@ export class CampaignDetails {
         this.#page = 1;
         this.#detail = null;
         get('detail-heading').textContent = id;
-        get('detail-description').textContent = 'Loading…';
-        for (const key of ['detail-state', 'detail-actions', 'detail-rows', 'detail-summary', 'page-number']) get(key).replaceChildren();
+        get('detail-description').replaceChildren(element('span', 'skeleton skeleton-line wide'));
+        for (const key of ['detail-state', 'detail-actions', 'detail-summary', 'page-number']) get(key).replaceChildren();
+        this.#recipientRows.replaceChildren(...skeletonRecipientRows());
         delete this.#actions.dataset.signature;
         paginate(1, 1);
     }
@@ -97,13 +97,12 @@ export class CampaignDetails {
 
     #renderHeader() {
         const { campaign } = this.#detail;
-        const latest = this.#overview.campaigns.find(row => row.id === campaign.id) ?? campaign;
         get('detail-heading').textContent = campaign.id;
-        get('detail-state').replaceChildren(badge(statusOf(latest)));
-        const description = `${CHANNEL_LABELS[campaign.channel]}${campaign.isTest ? ' test' : ''}, ${plural(latest.total, 'recipient', 'recipients')}`;
+        get('detail-state').replaceChildren(badge(statusOf(campaign)));
+        const description = `${CHANNEL_LABELS[campaign.channel]}${campaign.isTest ? ' test' : ''}, ${plural(campaign.total, 'recipient', 'recipients')}`;
         get('detail-description').replaceChildren(channelMark(campaign.channel), element('span', '', description));
-        setError('detail-error', latest.runError || '');
-        this.#renderActions(actionContext(this.#detail, latest, this.#overview));
+        setError('detail-error', campaign.runError || '');
+        this.#renderActions(actionContext(this.#detail, campaign, this.#overview));
     }
 
     #renderActions(context) {
@@ -132,6 +131,7 @@ export class CampaignDetails {
         if (!this.#detail) return;
         this.#page = this.#detail.page + direction;
         paginate(this.#page, 0);
+        this.#recipientRows.replaceChildren(...skeletonRecipientRows(this.#recipientRows.rows.length));
         this.reload();
     }
 
@@ -145,6 +145,19 @@ export class CampaignDetails {
         this.close();
         this.on.close();
     }
+}
+
+function skeletonRecipientRows(count = 6) {
+    return Array.from({ length: Math.min(8, Math.max(3, count)) }, () => {
+        const row = element('tr', 'skeleton-row');
+        row.setAttribute('aria-hidden', 'true');
+        for (const size of ['wide', 'wide', 'pill', 'tiny']) {
+            const cell = element('td');
+            cell.append(element('span', size === 'pill' ? 'skeleton skeleton-pill' : `skeleton skeleton-line ${size}`));
+            row.append(cell);
+        }
+        return row;
+    });
 }
 
 function countTile(key, value) {

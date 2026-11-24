@@ -50,6 +50,76 @@ export function listCampaignSummaries(db: DatabaseSync): CampaignSummary[] {
     return db.prepare(`${SUMMARY} GROUP BY c.id ORDER BY c.created_at DESC, c.id`).all().map(toCampaignSummary);
 }
 
+export const CAMPAIGN_STATUS_FILTERS = ['queued', 'processing', 'completed', 'failed'] as const;
+export type CampaignStatusFilter = typeof CAMPAIGN_STATUS_FILTERS[number];
+
+export interface CampaignQuery {
+    status?: CampaignStatusFilter;
+    channel?: CampaignChannel;
+    page: number;
+    pageSize: number;
+}
+
+export interface CampaignTotals {
+    queued: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    unknown: number;
+}
+
+export interface CampaignPage {
+    campaigns: CampaignSummary[];
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    matching: number;
+    allCampaigns: number;
+    totals: CampaignTotals;
+}
+
+const STATUS_CONDITIONS: Record<CampaignStatusFilter, string> = {
+    queued: 'queued > 0',
+    processing: 'processing > 0',
+    completed: 'completed > 0',
+    failed: '(failed > 0 OR unknown > 0)',
+};
+
+/** Filters, counts and pages the campaign list in SQL; only the requested page leaves the database. */
+export function listCampaignPage(db: DatabaseSync, query: CampaignQuery): CampaignPage {
+    const channelClause = query.channel ? ' AND c.channel = ?' : '';
+    const channelArgs = query.channel ? [query.channel] : [];
+    const filtered = `WITH summary AS (${SUMMARY} WHERE c.is_test = 0${channelClause} GROUP BY c.id)`;
+    const statusClause = query.status ? `WHERE ${STATUS_CONDITIONS[query.status]}` : '';
+    const totals = db.prepare(`${filtered}
+        SELECT count(*) AS campaigns,
+            coalesce(sum(queued), 0) AS queued, coalesce(sum(processing), 0) AS processing,
+            coalesce(sum(completed), 0) AS completed, coalesce(sum(failed), 0) AS failed, coalesce(sum(unknown), 0) AS unknown,
+            (SELECT count(*) FROM summary ${statusClause}) AS matching
+        FROM summary`).get(...channelArgs) as Record<string, number>;
+    const allCampaigns = Number((db.prepare('SELECT count(*) AS n FROM campaigns WHERE is_test = 0').get() as { n: number }).n);
+    const matching = Number(totals.matching);
+    const totalPages = Math.max(1, Math.ceil(matching / query.pageSize));
+    const page = Math.min(query.page, totalPages);
+    const rows = db.prepare(`${filtered} SELECT * FROM summary ${statusClause} ORDER BY created_at DESC, id LIMIT ? OFFSET ?`)
+        .all(...channelArgs, query.pageSize, (page - 1) * query.pageSize);
+    return {
+        campaigns: rows.map(toCampaignSummary),
+        page, pageSize: query.pageSize, totalPages, matching, allCampaigns,
+        totals: {
+            queued: Number(totals.queued), processing: Number(totals.processing), completed: Number(totals.completed),
+            failed: Number(totals.failed), unknown: Number(totals.unknown),
+        },
+    };
+}
+
+/** Campaigns that are sending or have a message in flight; the dashboard blocks starting a second one. */
+export function listActiveCampaignIds(db: DatabaseSync): string[] {
+    const rows = db.prepare(`SELECT c.id FROM campaigns c WHERE c.state = 'Running'
+        OR EXISTS (SELECT 1 FROM campaign_status_counts s WHERE s.campaign_id = c.id AND s.status = 'SENDING' AND s.total > 0)`).all();
+    return rows.map(row => String(row.id));
+}
+
 export function latestTestCampaign(db: DatabaseSync, channel: CampaignChannel): Campaign | undefined {
     const row = db.prepare(LATEST_TEST).get(channel);
     return row ? toCampaign(row) : undefined;

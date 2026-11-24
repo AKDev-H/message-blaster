@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="This address isn't part of Message Blaster.">
+    <title>Page not found | Message Blaster</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/brand.css">
+    <link rel="stylesheet" href="/pages.css">
+    <script src="/vendor/lucide.js"></script>
+    <script src="/vendor/lottie.js" defer></script>
+    <script type="module" src="/pages/page.mjs"></script>
+</head>
+<body class="status-page" data-kind="not-found">
+    <main class="status-shell">
+        <a class="brand page-brand" href="/" aria-label="Message Blaster home">
+            <span class="brand-mark"><i data-icon="megaphone" data-size="15"></i></span>
+            <span class="brand-name">Message Blaster</span>
+        </a>
+        <div class="status-art" role="img" aria-label="A paper plane loops along a dashed route and arrives at an empty map pin.">
+            <div class="status-player" data-animation="/animations/lost-message.json"></div>
+        </div>
+        <section class="status-copy" aria-labelledby="status-title">
+            <p class="status-code">Error 404</p>
+            <h1 id="status-title">This page isn’t on the route</h1>
+            <p>Nothing lives at <code id="requested-path">this address</code>. The link may be mistyped, or the page was moved.</p>
+            <div class="status-actions">
+                <a class="status-button primary" href="/" data-action="home"><i data-icon="house"></i><span>Way Back Home</span></a>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

@@ -21,7 +21,7 @@ export function actionContext(detail, latest, overview) {
         isTest: detail.campaign.isTest,
         hasDraft: Boolean(detail.draft),
         active: isActive(latest),
-        anotherActive: overview.campaigns.some(row => row.id !== id && isActive(row)),
+        anotherActive: overview.active.some(activeId => activeId !== id),
         dryRun: overview.dryRun,
     };
 }

@@ -32,6 +32,7 @@
     "format": "npm run lint -- --fix --fix-type layout",
     "check": "npm run lint && npm run typecheck && npm test",
     "web": "tsx src/web/index.ts",
+    "deploy": "bash scripts/deploy.sh",
     "cy:server": "rm -rf storage/cypress/cypress.db* storage/cypress/auth* && DATABASE_URL=storage/cypress/cypress.db ATTACHMENTS_DIR=storage/cypress/attachments AUTH_DIR=storage/cypress/auth LOG_DIR=storage/cypress/logs GMAIL_USER= GMAIL_APP_PASSWORD= DEFAULT_COUNTRY= MESSAGE_DELAY_MS= SECRET_KEY_FILE=storage/cypress/secret.key WEB_PORT=4319 DRY_RUN=true GROQ_API_KEY=cypress-stub tsx src/web/index.ts",
     "cy:open": "start-server-and-test cy:server http-get://127.0.0.1:4319 'cypress open --e2e'",
     "test:e2e": "start-server-and-test cy:server http-get://127.0.0.1:4319 'cypress run --e2e'"
@@ -43,6 +44,7 @@
     "exceljs": "4.4.0",
     "html-to-text": "10.0.1",
     "libphonenumber-js": "1.13.17",
+    "lottie-web": "^5.13.0",
     "lucide": "1.77.0",
     "mammoth": "1.13.0",
     "nodemailer": "10.6.1",

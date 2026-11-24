@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="Message Blaster is being updated.">
+    <title>Down for maintenance | Message Blaster</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/brand.css">
+    <link rel="stylesheet" href="/pages.css">
+    <script src="/vendor/lucide.js"></script>
+    <script src="/vendor/lottie.js" defer></script>
+    <script type="module" src="/pages/page.mjs"></script>
+</head>
+<body class="status-page" data-kind="maintenance">
+    <main class="status-shell">
+        <a class="brand page-brand" href="/" aria-label="Message Blaster home">
+            <span class="brand-mark"><i data-icon="megaphone" data-size="15"></i></span>
+            <span class="brand-name">Message Blaster</span>
+        </a>
+        <div class="status-art" role="img" aria-label="Two gears turn behind the Message Blaster megaphone.">
+            <div class="status-player" data-animation="/animations/maintenance.json"></div>
+            <span class="brand-mark art-logo" aria-hidden="true"><i data-icon="megaphone" data-size="24"></i></span>
+        </div>
+        <section class="status-copy" aria-labelledby="status-title">
+            <p class="status-code">Maintenance</p>
+            <h1 id="status-title">Message Blaster is being updated</h1>
+            <p>Campaigns can’t be viewed or sent until the update finishes. Nothing is sent while this page is showing.</p>
+            <p class="status-poll" id="status-poll" role="status">This page checks again every 15 seconds and opens your campaigns when they’re back.</p>
+        </section>
+    </main>
+</body>
+</html>

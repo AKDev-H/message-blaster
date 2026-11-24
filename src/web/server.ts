@@ -9,9 +9,9 @@ import { recoverInterruptedCampaigns } from '../services/live-campaign.service.j
 import { migrateSettings, withSavedSettings } from '../services/settings.service.js';
 import { WhatsAppLinker } from '../services/whatsapp/link.js';
 import { Store } from '../store/index.js';
-import { loadAssets, type Assets } from './assets.js';
+import { loadAssets, loadStatusPages, type Assets, type StatusPage, type StatusPages } from './assets.js';
 import { HttpError, publicError } from './http-error.js';
-import { respond, sendError, setSecurityHeaders, validateOrigin } from './http.js';
+import { respond, sendError, sendPage, setSecurityHeaders, validateOrigin } from './http.js';
 import { readCampaignId } from './input/index.js';
 import { LiveUpdates } from './live-updates.js';
 import { WebRunner } from './runner.js';
@@ -21,6 +21,18 @@ import { findRoute, type App } from './routes/route.js';
 import { settingsRoutes } from './routes/settings.js';
 
 const ROUTES = [...campaignRoutes, ...fileRoutes, ...settingsRoutes];
+const MAINTENANCE_RETRY_SECONDS = 120;
+/** Previews of each status page, so they can be checked without breaking anything. */
+const PAGE_PREVIEWS: Record<string, [StatusPage, number]> = {
+    '/errors/404': ['not-found', 404],
+    '/errors/500': ['server-error', 500],
+    '/errors/maintenance': ['maintenance', 503],
+};
+
+interface Site {
+    assets: Assets;
+    pages: StatusPages;
+}
 
 export interface Dashboard {
     url: string;
@@ -28,12 +40,12 @@ export interface Dashboard {
 }
 
 export async function startWebServer(env: BaseEnvironment, requestedPort = env.WEB_PORT): Promise<Dashboard> {
-    const assets = await loadAssets();
+    const site: Site = { assets: await loadAssets(), pages: await loadStatusPages() };
     const db = await openMainDatabase(env);
     const observer = openOrClose(env.DATABASE_URL, db);
     const app = createApp(env, db, observer);
     const listener = { port: requestedPort, closing: false };
-    const server = createServer({ requestTimeout: 30_000 }, (req, res) => void serve(req, res, app, assets, listener));
+    const server = createServer({ requestTimeout: 30_000 }, (req, res) => void serve(req, res, app, site, listener));
     listener.port = await listen(server, requestedPort, [observer, db]);
     app.updates.start();
     return { url: `http://127.0.0.1:${listener.port}`, close: runOnce(() => shutDown(app, server, listener, [observer, db])) };
@@ -75,32 +87,53 @@ function createApp(env: BaseEnvironment, db: DatabaseSync, observer: DatabaseSyn
     return app;
 }
 
+/** What every open dashboard needs on each change; each page then queries its own filtered list. */
 function campaignSnapshot({ env, store, runner, updates }: App) {
-    const campaigns = store.listCampaignSummaries().filter(campaign => !campaign.isTest).map(campaign => runner.decorate(campaign));
-    return { dryRun: env.DRY_RUN, ai: Boolean(env.GROQ_API_KEY), revision: updates.revision, campaigns };
+    const active = new Set(store.listActiveCampaignIds());
+    if (runner.activeId) active.add(runner.activeId);
+    return { dryRun: env.DRY_RUN, ai: Boolean(env.GROQ_API_KEY), revision: updates.revision, active: [...active] };
 }
 
-async function serve(req: IncomingMessage, res: ServerResponse, app: App, assets: Assets, listener: { port: number; closing: boolean }) {
+async function serve(req: IncomingMessage, res: ServerResponse, app: App, site: Site, listener: { port: number; closing: boolean }) {
     try {
-        await route(req, res, app, assets, listener);
+        await route(req, res, app, site, listener);
     } catch (error) {
         const failure = publicError(error);
         if (failure.status === 500) console.error('Dashboard request failed', error);
         if (res.headersSent) res.destroy();
+        else if (wantsPage(req) && failure.status === 404) sendPage(res, 404, site.pages.get('not-found')!);
+        else if (wantsPage(req) && failure.status >= 500) sendPage(res, failure.status, site.pages.get('server-error')!);
         else sendError(res, failure);
     }
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, app: App, assets: Assets, listener: { port: number; closing: boolean }) {
+async function route(req: IncomingMessage, res: ServerResponse, app: App, site: Site, listener: { port: number; closing: boolean }) {
     setSecurityHeaders(res);
     if (listener.closing) throw new HttpError(503, 'The dashboard is shutting down.');
     const { pathname, searchParams } = requestUrl(req);
     validateOrigin(req, listener.port, pathname.startsWith('/api/'));
-    const asset = assets.get(pathname);
+    const asset = site.assets.get(pathname);
+    if (app.env.MAINTENANCE_MODE) return underMaintenance(req, res, site, pathname);
     if (req.method === 'GET' && asset) return respond(res, 200, asset.body, asset.type);
+    const preview = PAGE_PREVIEWS[pathname];
+    if (req.method === 'GET' && preview) return sendPage(res, preview[1], site.pages.get(preview[0])!);
     const match = findRoute(ROUTES, req.method, pathname);
     if (!match) throw notFound(pathname);
     await match.route.handle({ req, res, params: match.params, query: searchParams }, app);
+}
+
+/** While MAINTENANCE_MODE is on, pages show the maintenance screen and the API refuses work; styles and scripts still load. */
+function underMaintenance(req: IncomingMessage, res: ServerResponse, site: Site, pathname: string): void {
+    const asset = site.assets.get(pathname);
+    if (req.method === 'GET' && asset && pathname !== '/') return respond(res, 200, asset.body, asset.type);
+    res.setHeader('Retry-After', String(MAINTENANCE_RETRY_SECONDS));
+    if (pathname.startsWith('/api/')) return sendError(res, new HttpError(503, 'Message Blaster is down for maintenance. Try again in a few minutes.'));
+    sendPage(res, 503, site.pages.get('maintenance')!);
+}
+
+function wantsPage(req: IncomingMessage): boolean {
+    const path = req.url ?? '';
+    return req.method === 'GET' && !path.startsWith('/api/') && String(req.headers.accept ?? '').includes('text/html');
 }
 
 function requestUrl(req: IncomingMessage): URL {

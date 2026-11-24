@@ -3,3 +3,4 @@ export { campaignTargets, readCampaignId, readChannel, readChannels } from './fi
 export { previewDraft, readDraft, type Draft } from './draft.js';
 export { listAttachments, storeAttachment } from './attachments.js';
 export { readDraftRequest, readGmailSettings, readReview, readSendingSettings, readTestRecipient } from './settings.js';
+export { readCampaignQuery } from './campaign-query.js';

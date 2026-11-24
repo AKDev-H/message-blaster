@@ -1,0 +1,159 @@
+@font-face {
+    font-family: "Bricolage Grotesque";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    src: url("/fonts/bricolage.woff2") format("woff2-variations");
+}
+
+@font-face {
+    font-family: "Instrument Sans";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 700;
+    font-stretch: 75% 100%;
+    src: url("/fonts/instrument.woff2") format("woff2-variations");
+}
+
+:root {
+    --paper: #f3f5f4;
+    --surface: #fff;
+    --ink: #1e2a2b;
+    --muted: #5f6e6c;
+    --line: #dde3e1;
+    --harbor: #2f6f73;
+    --harbor-deep: #24585c;
+    --harbor-wash: #e3efee;
+    --rust: #a14a3b;
+    --focus: #4f9a9e;
+    --display: "Bricolage Grotesque", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+    --text: "Instrument Sans", "Avenir Next", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    font: 400 1rem/1.55 var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+h1, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+.status-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-areas: "brand brand" "copy art";
+    align-items: center;
+    gap: clamp(20px, 4vw, 56px);
+    min-height: 100svh;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 40px) clamp(18px, 5vw, 56px) clamp(32px, 6vw, 72px);
+    align-content: center;
+}
+
+.page-brand { grid-area: brand; align-self: start; justify-self: start; }
+
+.status-art {
+    grid-area: art;
+    aspect-ratio: 3 / 2;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 1px 1px, #d3dcd9 1px, transparent 1.2px) 0 0 / 22px 22px,
+        var(--surface);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity .5s ease, transform .5s cubic-bezier(.2, .8, .2, 1);
+}
+
+.status-art { position: relative; overflow: hidden; }
+.status-art.ready { opacity: 1; transform: none; }
+.status-player { position: absolute; inset: 0; }
+
+/* The real brand mark sits on the large gear (its centre is at 200,150 of the 480×320 animation). */
+.art-logo {
+    position: absolute;
+    left: calc(200 / 480 * 100%);
+    top: calc(150 / 320 * 100%);
+    width: 13%;
+    height: auto;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    border-radius: 22% 22% 22% 6%;
+    animation: wobble 2s ease-in-out infinite;
+}
+
+.art-logo .icon { width: 52%; height: 52%; }
+
+.status-copy { grid-area: copy; display: grid; gap: 14px; max-width: 46ch; }
+.status-copy > p { color: var(--muted); }
+
+.status-copy .status-code {
+    justify-self: start;
+    padding: 3px 10px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    color: var(--harbor);
+    font: 600 .8rem/1.4 var(--text);
+}
+
+[data-kind="server-error"] .status-copy .status-code { color: var(--rust); }
+
+h1 {
+    font: 720 clamp(2rem, 1.2rem + 3.4vw, 3.3rem)/1.02 var(--display);
+    font-stretch: 82%;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+}
+
+code {
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--harbor-wash);
+    color: var(--harbor-deep);
+    font: 500 .88em/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-wrap: anywhere;
+}
+
+.status-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+
+.status-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 600 .9rem/1 var(--text);
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .14s ease, background .14s ease, transform .14s ease;
+}
+
+.status-button:hover { border-color: #c5d0cd; }
+.status-button:active { transform: translateY(1px); }
+.status-button:disabled { cursor: progress; opacity: .7; }
+.status-button:hover .icon-rotate-ccw { animation: rewind .6s cubic-bezier(.2, .8, .2, 1); }
+.status-button:hover .icon-house { animation: wobble .5s ease-in-out; }
+.status-button.primary { border-color: var(--harbor); background: var(--harbor); color: #fff; }
+.status-button.primary:hover { background: var(--harbor-deep); }
+
+.status-poll { padding-left: 12px; border-left: 3px solid var(--harbor-wash); font-size: .9rem; }
+
+@media (max-width: 760px) {
+    .status-shell { grid-template-columns: 1fr; grid-template-areas: "brand" "art" "copy"; align-content: start; }
+    .status-art { max-width: 460px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-art, .status-button { transition: none; }
+    .art-logo, .status-button .icon { animation: none !important; }
+}
+
+@keyframes rewind { from { transform: rotate(0); } to { transform: rotate(-360deg); } }

@@ -32,6 +32,10 @@ export function sendAttachment(res: ServerResponse, name: string, data: Buffer, 
     respond(res, 200, data, type.startsWith('text/') ? `${type}; charset=utf-8` : type);
 }
 
+export function sendPage(res: ServerResponse, status: number, body: Buffer): void {
+    respond(res, status, body, 'text/html; charset=utf-8');
+}
+
 export function sendError(res: ServerResponse, error: HttpError): void {
     json(res, error.status, { error: error.message, ...(error.field ? { field: error.field } : {}) });
 }

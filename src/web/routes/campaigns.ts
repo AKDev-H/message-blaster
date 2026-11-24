@@ -5,16 +5,19 @@ import type { NewCampaign } from '../../store/index.js';
 import type { CampaignChannel } from '../../types/index.js';
 import { HttpError } from '../http-error.js';
 import { json, noContent, sendWorkbook } from '../http.js';
-import { campaignTargets, previewDraft, readCampaignId, readChannels, readDraft, readForm, readJson, readReview, type Draft } from '../input/index.js';
+import {
+    campaignTargets, previewDraft, readCampaignId, readCampaignQuery, readChannels, readDraft, readForm, readJson, readReview, type Draft,
+} from '../input/index.js';
 import type { App, Request, Route } from './route.js';
 
 const PAGE_SIZE = 25;
+const CAMPAIGN_PAGE_SIZE = 10;
 export const CAMPAIGN_PATH = /^\/api\/campaigns\/([A-Za-z0-9_-]+)(?:\/([a-z]+))?$/u;
 const campaign = (action?: string) => new RegExp(`^/api/campaigns/([A-Za-z0-9_-]+)${action ? `/${action}` : ''}$`, 'u');
 
 export const campaignRoutes: Route[] = [
     { method: 'GET', path: '/api/events', handle: ({ res }, app) => app.updates.subscribe(res) },
-    { method: 'GET', path: '/api/campaigns', handle: ({ res }, app) => json(res, 200, app.snapshot()) },
+    { method: 'GET', path: '/api/campaigns', handle: listCampaigns },
     { method: 'POST', path: '/api/campaigns', handle: createCampaigns },
     { method: 'GET', path: campaign(), handle: showCampaign },
     { method: 'GET', path: campaign('export'), handle: exportResults },
@@ -27,6 +30,12 @@ export const campaignRoutes: Route[] = [
     { method: 'POST', path: campaign('retry'), handle: retryFailed },
     { method: 'POST', path: campaign('review'), handle: review },
 ];
+
+function listCampaigns({ res, query }: Request, app: App): void {
+    const result = app.store.listCampaignPage(readCampaignQuery(query, CAMPAIGN_PAGE_SIZE));
+    const campaigns = result.campaigns.map(campaign => app.runner.decorate(campaign));
+    json(res, 200, { ...(app.snapshot() as object), ...result, campaigns });
+}
 
 async function createCampaigns({ req, res }: Request, app: App): Promise<void> {
     const form = await readForm(req);

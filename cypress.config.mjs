@@ -25,6 +25,43 @@ async function resetDatabase() {
     return null;
 }
 
+function simulateDelivery({ id, state, statuses }) {
+    const db = new DatabaseSync(databasePath);
+    try {
+        db.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
+        const move = db.prepare(`UPDATE messages SET status = ?, sent_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), attempt_count = 1
+            WHERE id IN (SELECT id FROM messages WHERE campaign_id = ? AND eligible = 1 AND status IN ('PENDING', 'QUEUED', 'SENDING') ORDER BY row_number LIMIT ?)`);
+        for (const [status, count] of Object.entries(statuses)) move.run(status, id, count);
+        if (state) db.prepare('UPDATE campaigns SET state = ? WHERE id = ?').run(state, id);
+        db.exec('COMMIT');
+    } finally {
+        db.close();
+    }
+    return null;
+}
+
+/** Inserts `count` ready campaigns, every third one on WhatsApp, each with one queued recipient. */
+function seedCampaigns({ count }) {
+    const db = new DatabaseSync(databasePath);
+    try {
+        db.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
+        const campaign = db.prepare(`INSERT INTO campaigns(id, state, is_test, created_at, updated_at, channel) VALUES (?, 'Ready', 0, ?, ?, ?)`);
+        const message = db.prepare(`INSERT INTO messages(campaign_id, row_number, client_id, client_name, recipient, message, pdf_filename,
+            consent_status, eligible, status) VALUES (?, 1, 'c1', 'Ari', ?, 'Hi Ari', '', 'Opted In', 1, 'PENDING')`);
+        for (let index = 0; index < count; index += 1) {
+            const channel = index % 3 === 0 ? 'whatsapp' : 'gmail';
+            const id = `${channel === 'gmail' ? 'newsletter' : 'promo'}-${String(index + 1).padStart(2, '0')}`;
+            const created = new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString();
+            campaign.run(id, created, created, channel);
+            message.run(id, channel === 'gmail' ? 'ari@example.com' : '+60123456789');
+        }
+        db.exec('COMMIT');
+    } finally {
+        db.close();
+    }
+    return null;
+}
+
 const headers = {
     gmail: ['Client Name', 'Email Address', 'Subject', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
     whatsapp: ['Client Name', 'Phone Number', 'Message', 'PDF Filename', 'Consent Status', 'Campaign ID'],
@@ -77,7 +114,8 @@ export default defineConfig({
         screenshotsFolder: 'storage/cypress/screenshots',
         downloadsFolder: 'storage/cypress/downloads',
         setupNodeEvents(on) {
-            on('task', { 'db:reset': resetDatabase, 'workbook:create': createWorkbook, 'docx:create': createDocx, 'workbook:inspect': inspectWorkbook });
+            on('task', { 'db:reset': resetDatabase, 'workbook:create': createWorkbook, 'docx:create': createDocx, 'workbook:inspect': inspectWorkbook,
+                'campaign:simulate': simulateDelivery, 'campaigns:seed': seedCampaigns });
         },
     },
 });

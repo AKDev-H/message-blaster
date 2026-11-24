@@ -37,6 +37,10 @@ export class WebRunner {
         return { ...campaign, runActive: Boolean(active), runStatus, runError: this.failureOf(campaign.id) };
     }
 
+    get activeId(): string | undefined {
+        return this.#active?.campaign.id;
+    }
+
     isActive(id: string): boolean {
         return this.#active?.campaign.id === id;
     }

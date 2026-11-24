@@ -5,7 +5,7 @@ import { ConfirmDialog } from './dialogs/confirm.mjs';
 import { SettingsDialog } from './settings/settings.mjs';
 import { hydrateBrands } from './shared/brands.mjs';
 import { hydrateIcons } from './shared/icons.mjs';
-import { get, request, setError } from './shared/ui.mjs';
+import { get, setError } from './shared/ui.mjs';
 import { FileViewer } from './viewer/viewer.mjs';
 
 const RECONNECT_CHECK_MS = 5000;
@@ -13,11 +13,12 @@ const RECONNECT_CHECK_MS = 5000;
 hydrateIcons();
 hydrateBrands();
 
-const state = { campaigns: null, dryRun: true, revision: null, streamUpdates: 0 };
+const MAINTENANCE = 503;
+const state = { dryRun: true, active: [] };
 
 const viewer = new FileViewer();
 const settings = new SettingsDialog();
-const queue = new CampaignQueue(openDetails);
+const queue = new CampaignQueue({ onOpen: openDetails, onLoad: applyOverview, onError: showLoadError });
 const details = new CampaignDetails({
     edit: detail => composer.open(detail),
     action: (action, campaign, recordId) => confirmation.open(action, campaign, recordId),
@@ -25,50 +26,42 @@ const details = new CampaignDetails({
     close: focusClosedCampaign,
 });
 const composer = new Composer(async id => {
-    await loadOverview();
+    await queue.refresh();
     openDetails(id);
 }, viewer);
 const confirmation = new ConfirmDialog(async action => {
     if (action === 'delete') details.close();
-    await loadOverview();
+    await queue.refresh();
     if (details.selected) await details.reload();
 });
 
 wireDialogs();
 wireToolbar();
 followLiveUpdates();
-loadOverview();
+queue.load();
 
 function openDetails(id) {
-    queue.render(state.campaigns, id);
+    queue.select(id);
     details.open(id);
 }
 
 function focusClosedCampaign(id) {
-    queue.render(state.campaigns, '');
+    queue.select('');
     if (id) get('campaign-rows').querySelector(`[data-campaign="${CSS.escape(id)}"]`)?.focus();
 }
 
-function applySnapshot(snapshot) {
-    const previous = new Map((state.campaigns ?? []).map(campaign => [campaign.id, JSON.stringify(campaign)]));
-    const revisionChanged = state.revision !== (snapshot.revision ?? null);
-    Object.assign(state, { campaigns: snapshot.campaigns, dryRun: snapshot.dryRun, revision: snapshot.revision ?? null });
+/** Applies the dashboard-wide part of a list response or live event: preview mode, AI and which campaign is sending. */
+function applyOverview(snapshot) {
+    Object.assign(state, { dryRun: snapshot.dryRun, active: snapshot.active ?? [] });
     get('mode-indicator').hidden = !state.dryRun;
     composer.setAiAvailable(Boolean(snapshot.ai));
-    queue.render(state.campaigns, details.selected);
-    details.update(state, campaign => revisionChanged || previous.get(campaign.id) !== JSON.stringify(campaign));
+    details.update(state);
+    setError('page-error', '');
 }
 
-async function loadOverview() {
-    const streamUpdates = state.streamUpdates;
-    try {
-        const snapshot = await request('/api/campaigns');
-        if (streamUpdates !== state.streamUpdates) return;
-        applySnapshot(snapshot);
-        setError('page-error', '');
-    } catch (error) {
-        if (streamUpdates === state.streamUpdates) setError('page-error', error);
-    }
+function showLoadError(error) {
+    if (error.status === MAINTENANCE) return window.location.reload();
+    setError('page-error', error);
 }
 
 function followLiveUpdates() {
@@ -77,14 +70,14 @@ function followLiveUpdates() {
     events.addEventListener('message', event => onLiveUpdate(event));
     events.addEventListener('error', () => setConnection('offline', 'Reconnecting…'));
     window.setInterval(() => {
-        if (events.readyState !== EventSource.OPEN) loadOverview();
+        if (events.readyState !== EventSource.OPEN) queue.refresh();
     }, RECONNECT_CHECK_MS);
 }
 
 function onLiveUpdate(event) {
-    state.streamUpdates += 1;
-    applySnapshot(JSON.parse(event.data));
-    setError('page-error', '');
+    applyOverview(JSON.parse(event.data));
+    queue.refresh();
+    details.reload();
 }
 
 function setConnection(mode, message) {
@@ -103,7 +96,7 @@ function wireDialogs() {
 function wireToolbar() {
     get('create-campaign').addEventListener('click', () => composer.open());
     get('open-settings').addEventListener('click', () => settings.open());
-    get('empty-action').addEventListener('click', () => (state.campaigns?.length ? queue.clearFilters() : composer.open()));
+    get('empty-action').addEventListener('click', () => (queue.hasCampaigns ? queue.clearFilters() : composer.open()));
     wireTemplateMenu(get('template-menu'));
 }
 

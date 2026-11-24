@@ -49,6 +49,7 @@ const schema = z.object({
     RECEIPT_WAIT_MS: integer(0, 300_000, 5_000),
     WEB_PORT: integer(1, 65_535, 3_000),
     DRY_RUN: boolean(true),
+    MAINTENANCE_MODE: boolean(false),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

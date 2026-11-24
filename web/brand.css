@@ -1,0 +1,36 @@
+/* The Message Blaster logo, shared by the dashboard and the status pages. */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.brand-name {
+    font-family: var(--display);
+    font-size: 1.02rem;
+    font-stretch: 82%;
+    font-weight: 720;
+    letter-spacing: -.01em;
+}
+
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px 7px 7px 2px;
+    background: var(--harbor);
+    color: #fff;
+}
+
+.brand:hover .icon-megaphone { animation: wobble .5s ease-in-out; }
+.brand .icon path { transform-box: fill-box; }
+
+@keyframes wobble { 0%, 100% { transform: none; } 30% { transform: rotate(-14deg); } 65% { transform: rotate(9deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .brand:hover .icon-megaphone { animation: none; }
+}
