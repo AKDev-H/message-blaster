@@ -74,11 +74,19 @@
 .auth-bg {
     position: fixed;
     inset: -20px;
-    background: url('/login-bg.jpg') center center / cover no-repeat;
+    /* The full image paints over a 128-byte inline preview, so the page is never blank while it loads. */
+    --login-bg-preview: url('data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAADQAwCdASoYAA4APu1krU2ppaSiMAgBMB2JZACdAB9RLrGdSKEWggAA/udLbYh8+6CCXeVnrS4MQkwcJvuCYW3heVMJOFc8tysGtLN4fFCczKzAuMf3bj5MXMIy5iP1UCrZ8vsX0byV9WrPAAA=');
+    background: url('/login-bg-1376.webp') center center / cover no-repeat, var(--login-bg-preview) center center / cover no-repeat;
     filter: blur(8px);
     transform: scale(1.05);
     pointer-events: none;
     z-index: 0;
+}
+
+@media (max-width: 768px) {
+    .auth-bg {
+        background-image: url('/login-bg-768.webp'), var(--login-bg-preview);
+    }
 }
 
 .auth-page::before {

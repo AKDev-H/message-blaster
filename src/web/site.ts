@@ -10,7 +10,7 @@ import type { App } from './routes/route.js';
 const MAINTENANCE_RETRY_SECONDS = 120;
 const CAMPAIGN_PAGE = /^\/campaigns\/([^/]+)$/u;
 const ADMIN_PAGES = new Set(['/audit']);
-const PUBLIC_ASSETS = new Set(['/auth.css', '/login.mjs', '/login-bg.jpg', '/logo.png', '/brand.css']);
+const PUBLIC_ASSETS = new Set(['/auth.css', '/login.mjs', '/login-bg-768.webp', '/login-bg-1376.webp','/logo.png', '/brand.css']);
 const PUBLIC_ASSET_PREFIXES = ['/fonts/', '/vendor/', '/favicon.', '/manifest.webmanifest'];
 const PAGE_PREVIEWS: Record<string, [StatusPage, number]> = {
     '/errors/404': ['not-found', 404],

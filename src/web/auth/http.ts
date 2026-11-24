@@ -95,7 +95,7 @@ function cookie(req: IncomingMessage, name: string): string | undefined {
 }
 
 function loginPage(res: ServerResponse, status: number, message: string): void {
-    respond(res, status, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · Message Blaster</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/auth.css"><script type="module" src="/login.mjs"></script></head>
+    respond(res, status, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Sign in · Message Blaster</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/login-bg-768.webp" as="image" type="image/webp" media="(max-width: 768px)"><link rel="preload" href="/login-bg-1376.webp" as="image" type="image/webp" media="(min-width: 769px)"><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/auth.css"><script type="module" src="/login.mjs"></script></head>
 <body class="auth-page">
     <div class="auth-bg" aria-hidden="true"></div>
     <main class="auth-card">
