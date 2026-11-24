@@ -1,51 +1,48 @@
-import { button, campaignPath, link } from '../shared/ui.mjs';
-import { isActive } from './status.mjs';
+import { CHANNEL_LABELS } from '../shared/labels.mjs';
+import { button, link } from '../shared/ui.mjs';
 
-const ACTION_RULES = [
-    { when: c => c.hasDraft && !c.active, build: (c, on) => button('Edit', () => on.edit(), undefined, 'pencil') },
-    { when: canSend, build: sendButton },
-    { when: c => c.latest.runStatus === 'Connecting' || (c.latest.state === 'Running' && !c.latest.runStatus),
-        build: (c, on) => button('Pause', () => on.action('pause', c.latest), undefined, 'pause') },
-    { when: c => !c.active && c.latest.failed > 0 && !['Draft', 'Ready', 'Cancelled'].includes(c.latest.state),
-        build: (c, on) => button('Retry failed', () => on.action('retry', c.latest), undefined, 'rotate-ccw') },
-    { when: () => true, build: c => link('Export', `${campaignPath(c.id)}/export`, undefined, 'download') },
-    { when: c => !['Completed', 'Cancelled'].includes(c.latest.state) && c.latest.runStatus !== 'Cancelling',
-        build: (c, on) => button('Cancel', () => on.action('cancel', c.latest), 'button quiet-danger small', 'ban') },
-    { when: c => !c.active, build: (c, on) => button('Delete', () => on.action('delete', c.latest), 'button quiet-danger small', 'trash-2') },
-];
-
-export function actionContext(detail, latest, overview) {
-    const id = detail.campaign.id;
-    return {
-        id, latest,
-        isTest: detail.campaign.isTest,
-        hasDraft: Boolean(detail.draft),
-        active: isActive(latest),
-        anotherActive: overview.active.some(activeId => activeId !== id),
-        dryRun: overview.dryRun,
-    };
+export function channelButtons(channel, on, { combined }) {
+    const { actions } = channel;
+    const suffix = combined ? ` ${CHANNEL_LABELS[channel.channel]}` : '';
+    const nodes = [];
+    if (actions.start || actions.resume) nodes.push(sendButton(channel, on, suffix));
+    if (actions.pause) nodes.push(button('Pause', () => on.action('pause', channel.channel), undefined, 'pause'));
+    if (actions.retry) nodes.push(button('Retry failed', () => on.action('retry', channel.channel), undefined, 'rotate-ccw'));
+    nodes.push(link('Export', on.exportUrl(channel.channel), undefined, 'download'));
+    if (actions.cancel) nodes.push(button('Cancel', () => on.action('cancel', channel.channel), 'button quiet-danger small', 'ban'));
+    return nodes;
 }
 
-export function campaignActions(context, on) {
-    return ACTION_RULES.filter(rule => rule.when(context)).map(rule => rule.build(context, on));
+export function groupButtons(detail, on) {
+    const { campaign, channels } = detail;
+    const nodes = [];
+    if (detail.draft) nodes.push(button('Edit', () => on.edit(), undefined, 'pencil'));
+    if (campaign.sendBoth) nodes.push(sendBothButton(channels, on));
+    if (channels.length === 1) nodes.push(...channelButtons(channels[0], on, { combined: false }));
+    nodes.push(button('Rename', () => on.action('rename'), 'button ghost small', 'text-cursor-input'));
+    if (campaign.deletable) nodes.push(button('Delete', () => on.action('delete'), 'button quiet-danger small', 'trash-2'));
+    return nodes;
 }
 
-export function actionSignature(c) {
-    const { state, runStatus, queued, failed } = c.latest;
-    return JSON.stringify([c.id, c.hasDraft, state, runStatus, c.active, queued > 0, failed > 0, c.anotherActive, c.dryRun]);
+export function buttonSignature(detail) {
+    const { campaign, channels, draft } = detail;
+    return JSON.stringify([campaign.slug, Boolean(draft), campaign.sendBoth, campaign.deletable, channels.map(channel => channel.actions)]);
 }
 
-function canSend(c) {
-    const sendable = ['Ready', 'Paused', 'Failed'].includes(c.latest.state) && c.latest.queued > 0;
-    return !c.active && sendable && (!c.isTest || c.latest.state !== 'Ready');
+function sendButton(channel, on, suffix) {
+    const starting = channel.actions.start;
+    const label = `${starting ? 'Start sending' : 'Resume'}${suffix}`;
+    const node = button(label, () => on.action(starting ? 'start' : 'resume', channel.channel), 'button primary small', starting ? 'send' : 'play');
+    return blockable(node, channel.actions.sendBlocked);
 }
 
-function sendButton(c, on) {
-    const starting = c.latest.state === 'Ready';
-    const node = button(starting ? 'Start sending' : 'Resume', () => on.action(starting ? 'start' : 'resume', c.latest),
-        'button primary small', starting ? 'send' : 'play');
-    node.disabled = c.dryRun || c.anotherActive;
-    if (c.dryRun) node.title = 'Sending is turned off in preview mode';
-    else if (c.anotherActive) node.title = 'Another campaign is sending';
+function sendBothButton(channels, on) {
+    const node = button('Send both', () => on.action('send'), 'button primary small', 'send');
+    return blockable(node, channels.map(channel => channel.actions.sendBlocked).find(Boolean));
+}
+
+function blockable(node, reason) {
+    node.disabled = Boolean(reason);
+    if (reason) node.title = reason;
     return node;
 }

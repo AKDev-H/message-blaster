@@ -29,7 +29,7 @@
                 <span class="brand-name">Message Blaster</span>
             </a>
             <nav class="topnav" aria-label="Workspace">
-                <a class="nav-item" href="#queue" aria-current="page"><i data-icon="layout-list"></i><span>Campaigns</span></a>
+                <a class="nav-item" href="/" id="nav-campaigns" aria-current="page"><i data-icon="layout-list"></i><span>Campaigns</span></a>
                 <button class="nav-item" type="button" id="open-library"><i data-icon="paperclip"></i><span>Attachments</span></button>
                 <button class="nav-item" type="button" id="open-settings"><i data-icon="settings"></i><span>Settings</span></button>
                 <a class="nav-item" href="/audit" id="open-audit" aria-label="Audit log" hidden><i data-icon="clipboard-list"></i><span>Audit log</span></a>
@@ -128,8 +128,16 @@
                 </div>
                 <div id="detail-actions" class="actions"></div>
             </header>
+            <div class="detail-tabs settings-tabs" id="detail-tabs" role="tablist" aria-label="Campaign views" hidden></div>
+            <p class="detail-notice" id="detail-notice" role="status" hidden></p>
             <div class="detail-summary" id="detail-summary"></div>
             <p class="inline-error" id="detail-error" role="alert" hidden></p>
+            <div class="detail-channels" id="detail-channels" hidden></div>
+            <div class="channel-toolbar" id="channel-toolbar" hidden>
+                <p class="channel-toolbar-title" id="channel-toolbar-title"></p>
+                <div id="channel-actions" class="actions"></div>
+            </div>
+            <div class="detail-recipients" id="detail-recipients">
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -146,6 +154,7 @@
                 <span id="page-number"></span>
                 <button class="icon-button" id="next-page" type="button" aria-label="Next page"><i data-icon="chevron-right"></i></button>
             </footer>
+            </div>
         </section>
         <p class="inline-error" id="page-error" role="alert" hidden></p>
     </main>
@@ -235,6 +244,14 @@
                         <button type="button" class="button accent small" id="ai-generate"><span class="label">Write</span></button>
                     </div>
                     <p class="field-error" id="ai-error" aria-live="polite" hidden></p>
+                    <div class="content-tabs" id="content-tabs" hidden>
+                        <div class="settings-tabs" role="tablist" aria-label="Message for each channel">
+                            <button type="button" role="tab" data-content-tab="shared" aria-selected="true">Shared</button>
+                            <button type="button" role="tab" data-content-tab="gmail" aria-selected="false" tabindex="-1"><i data-brand="gmail" data-size="14"></i>Gmail<span class="override-dot" hidden></span></button>
+                            <button type="button" role="tab" data-content-tab="whatsapp" aria-selected="false" tabindex="-1"><i data-brand="whatsapp" data-size="14"></i>WhatsApp<span class="override-dot" hidden></span></button>
+                        </div>
+                        <p class="content-status" id="content-status" aria-live="polite"><span id="content-inherits"></span><button type="button" class="text-link" id="content-reset" hidden><i data-icon="undo-2" data-size="14"></i><span>Reset to shared</span></button></p>
+                    </div>
                     <div class="field" id="subject-field">
                         <label for="campaign-subject">Fallback subject</label>
                         <input id="campaign-subject" name="subject" maxlength="255" placeholder="Hi {{client_name}}, …" aria-describedby="subject-error">
@@ -297,6 +314,12 @@
                     <label for="approve-name">Campaign name</label>
                     <input name="approve" id="approve-name" autocomplete="off" aria-describedby="approve-error">
                     <p class="field-error" id="approve-error" aria-live="polite" hidden></p>
+                </div>
+                <div class="field" id="rename-field" hidden>
+                    <label for="rename-name">Display name</label>
+                    <input name="name" id="rename-name" maxlength="100" autocomplete="off" aria-describedby="rename-help name-error">
+                    <p class="field-help" id="rename-help">The campaign link stays the same.</p>
+                    <p class="field-error" id="name-error" aria-live="polite" hidden></p>
                 </div>
                 <div id="review-fields" hidden>
                     <div class="field">

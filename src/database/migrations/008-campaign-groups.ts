@@ -1,7 +1,3 @@
-// One dashboard campaign ("group") owns one channel campaign per channel. Existing campaigns
-// keep their IDs, messages, attempts and receipts; each non-test campaign is backfilled into
-// its own group whose slug is the campaign ID. Split Gmail/WhatsApp pairs are only merged
-// after an operator confirms them with `campaign:group`.
 export const campaignGroupsMigration = `
     CREATE TABLE campaign_groups (
         id INTEGER PRIMARY KEY,

@@ -71,8 +71,6 @@ export class DashboardAuth {
         return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}${this.secure ? '; Secure' : ''}`;
     }
 
-    // Proxy deployments can add per-client limits. The app caps total Google exchanges
-    // without trusting IP headers supplied by the client.
     private rateLimit(res: ServerResponse): void {
         const now = Date.now();
         if (now >= this.#windowEnd) {

@@ -2,60 +2,86 @@ import { CampaignDetails } from './campaigns/details.mjs';
 import { CampaignQueue } from './campaigns/queue.mjs';
 import { Composer } from './compose/composer.mjs';
 import { ConfirmDialog } from './dialogs/confirm.mjs';
+import { currentRoute, followLink, navigate, onRouteChange } from './router.mjs';
 import { SettingsDialog } from './settings/settings.mjs';
 import { hydrateBrands } from './shared/brands.mjs';
 import { hydrateIcons } from './shared/icons.mjs';
-import { get, request, setError, whileBusy } from './shared/ui.mjs';
+import { campaignPage, get, request, setError, whileBusy } from './shared/ui.mjs';
 import { FileViewer } from './viewer/viewer.mjs';
 
 const RECONNECT_CHECK_MS = 5000;
+const LIST_TITLE = 'Campaigns | Message Blaster';
 
 hydrateIcons();
 hydrateBrands();
 
 const MAINTENANCE = 503;
-const state = { dryRun: true, active: [] };
+const state = { dryRun: true, active: [], view: '' };
 
 const viewer = new FileViewer();
 const settings = new SettingsDialog();
-const queue = new CampaignQueue({ onOpen: openDetails, onLoad: applyOverview, onError: showLoadError });
+const queue = new CampaignQueue({ onLoad: applyOverview, onError: showLoadError });
 const details = new CampaignDetails({
     edit: detail => composer.open(detail),
-    action: (action, campaign, recordId) => confirmation.open(action, campaign, recordId),
+    action: (action, channel, recordId) => openConfirmation(action, channel, recordId),
     viewAttachment: name => viewer.open(name),
-    close: focusClosedCampaign,
+    close: closeDetails,
+    missing: () => navigate('/'),
 });
-const composer = new Composer(async id => {
-    await queue.refresh();
-    openDetails(id);
+const composer = new Composer(async slug => {
+    if (state.view === 'campaign' && details.selected === slug) await details.reload();
+    else navigate(campaignPage(slug), { fromList: state.view === 'list' });
 }, viewer);
 const confirmation = new ConfirmDialog(async action => {
-    if (action === 'delete') details.close();
-    await queue.refresh();
-    if (details.selected) await details.reload();
+    if (action === 'delete') return closeDetails();
+    await details.reload();
 });
 
 wireDialogs();
 wireToolbar();
 wireAccount();
 followLiveUpdates();
-queue.load();
+onRouteChange(showRoute);
+showRoute();
 
-function openDetails(id) {
-    queue.select(id);
-    details.open(id);
+function showRoute() {
+    const route = currentRoute();
+    const listView = route.view === 'list';
+    get('queue').hidden = !listView;
+    get('page-title').closest('.overview').hidden = !listView;
+    get('nav-campaigns').toggleAttribute('aria-current', listView);
+    if (listView) {
+        details.close();
+        document.title = LIST_TITLE;
+        const changed = queue.applySearch(route.search);
+        if (changed || state.view !== 'list') queue.load();
+        state.view = 'list';
+        return;
+    }
+    state.view = 'campaign';
+    details.open(route.slug);
+    window.scrollTo({ top: 0 });
 }
 
-function focusClosedCampaign(id) {
-    queue.select('');
-    if (id) get('campaign-rows').querySelector(`[data-campaign="${CSS.escape(id)}"]`)?.focus();
+function closeDetails() {
+    if (window.history.state?.fromList) window.history.back();
+    else navigate('/');
+}
+
+function openConfirmation(action, channel, recordId) {
+    const current = details.current;
+    if (!current) return;
+    const combined = current.channels.length > 1;
+    confirmation.open(action, {
+        slug: current.slug, name: current.name, channel: channel ?? current.channels[0], recordId, combined,
+        channels: current.channels, version: () => details.current?.version ?? current.version,
+    });
 }
 
 function applyOverview(snapshot) {
     Object.assign(state, { dryRun: snapshot.dryRun, active: snapshot.active ?? [] });
     get('mode-indicator').hidden = !state.dryRun;
     composer.setAiAvailable(Boolean(snapshot.ai));
-    details.update(state);
     setError('page-error', '');
 }
 
@@ -70,14 +96,18 @@ function followLiveUpdates() {
     events.addEventListener('message', event => onLiveUpdate(event));
     events.addEventListener('error', () => setConnection('offline', 'Reconnecting…'));
     window.setInterval(() => {
-        if (events.readyState !== EventSource.OPEN) queue.refresh();
+        if (events.readyState !== EventSource.OPEN) refreshView();
     }, RECONNECT_CHECK_MS);
 }
 
 function onLiveUpdate(event) {
     applyOverview(JSON.parse(event.data));
-    queue.refresh();
-    details.reload();
+    refreshView();
+}
+
+function refreshView() {
+    if (state.view === 'campaign') details.reload();
+    else if (state.view === 'list') queue.refresh();
 }
 
 function setConnection(mode, message) {
@@ -97,6 +127,7 @@ function wireToolbar() {
     get('create-campaign').addEventListener('click', () => composer.open());
     get('open-settings').addEventListener('click', () => settings.open());
     get('empty-action').addEventListener('click', () => (queue.hasCampaigns ? queue.clearFilters() : composer.open()));
+    for (const home of [get('nav-campaigns'), document.querySelector('.brand')]) home.addEventListener('click', event => followLink(event, '/'));
     wireTemplateMenu(get('template-menu'));
 }
 

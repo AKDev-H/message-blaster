@@ -1,12 +1,10 @@
 import type { ServerResponse } from 'node:http';
 import { exportCampaignWorkbook } from '../../services/campaign/export.js';
 import type { RunMode } from '../../services/live-campaign.service.js';
-import type { NewCampaign } from '../../store/index.js';
-import type { CampaignChannel } from '../../types/index.js';
 import { HttpError } from '../http-error.js';
 import { json, noContent, sendWorkbook } from '../http.js';
 import {
-    campaignTargets, previewDraft, readCampaignId, readCampaignQuery, readChannels, readDraft, readForm, readJson, readReview, type Draft,
+    previewDraft, readCampaignId, readCampaignQuery, readDraft, readForm, readJson, readReview,
 } from '../input/index.js';
 import type { App, Request, Route } from './route.js';
 
@@ -18,7 +16,6 @@ const campaign = (action?: string) => new RegExp(`^/api/campaigns/([A-Za-z0-9_-]
 export const campaignRoutes: Route[] = [
     { method: 'GET', path: '/api/events', handle: ({ res, sessionActive }, app) => app.updates.subscribe(res, sessionActive) },
     { method: 'GET', path: '/api/campaigns', handle: listCampaigns },
-    { method: 'POST', path: '/api/campaigns', handle: createCampaigns },
     { method: 'GET', path: campaign(), handle: showCampaign },
     { method: 'GET', path: campaign('export'), handle: exportResults },
     { method: 'PUT', path: campaign('draft'), handle: editDraft },
@@ -35,25 +32,6 @@ function listCampaigns({ res, query }: Request, app: App): void {
     const result = app.store.listCampaignPage(readCampaignQuery(query, CAMPAIGN_PAGE_SIZE));
     const campaigns = result.campaigns.map(campaign => app.runner.decorate(campaign));
     json(res, 200, { ...(app.snapshot() as object), ...result, campaigns });
-}
-
-async function createCampaigns({ req, res, audit }: Request, app: App): Promise<void> {
-    const form = await readForm(req);
-    const name = readCampaignId(String(form.get('id') ?? ''));
-    const targets = campaignTargets(name, readChannels(form));
-    const draft = await readDraft(form);
-    const campaigns = await prepareTargets(app, targets, draft, targets.length > 1 ? name : undefined);
-    audit.mutation('campaign.create', () => app.store.importCampaigns(campaigns), name);
-    app.updates.changed();
-    json(res, 201, { id: targets[0]!.id, ids: targets.map(({ id }) => id) });
-}
-
-async function prepareTargets(app: App, targets: { id: string; channel: CampaignChannel }[], draft: Draft, group?: string) {
-    const campaigns: NewCampaign[] = [];
-    for (const { id, channel } of targets) {
-        campaigns.push({ id, channel, draft, rows: await previewDraft(app.store, app.settings(), id, channel, draft, group) });
-    }
-    return campaigns;
 }
 
 function showCampaign({ res, params, query }: Request, app: App): void {

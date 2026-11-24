@@ -48,3 +48,11 @@ function svgElement(tag, attributes) {
     for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, String(value));
     return node;
 }
+
+export function channelMarks(channels, size = 16) {
+    if (channels.length === 1) return channelMark(channels[0], size);
+    const pair = document.createElement('span');
+    pair.className = 'channel-pair';
+    pair.append(...channels.map(channel => channelMark(channel, Math.round(size * 0.8))));
+    return pair;
+}

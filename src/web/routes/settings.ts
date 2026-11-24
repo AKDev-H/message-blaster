@@ -1,12 +1,12 @@
 import { getCountries } from 'libphonenumber-js';
-import type { AppSettings } from '../../config/env.js';
 import { loadSettings, saveSettings } from '../../services/settings.service.js';
-import { createTestCampaign, senderAccountId, testState } from '../../services/test-send.service.js';
+import { createTestCampaign, testState } from '../../services/test-send.service.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel } from '../../types/index.js';
 import type { RequestAudit } from '../auth/audit.js';
 import { HttpError, orFail } from '../http-error.js';
 import { json } from '../http.js';
 import { readChannel, readGmailSettings, readJson, readSendingSettings, readTestRecipient } from '../input/index.js';
+import { senderAccount } from '../senders.js';
 import type { App, Request, Route } from './route.js';
 
 const TEST_PATH = /^\/api\/settings\/([a-z]+)\/test$/u;
@@ -62,12 +62,6 @@ async function verifyGmail({ res, audit }: Request, app: App): Promise<void> {
     await orFail(502, 'Could not connect to Gmail.', () => new GmailService(app.settings()).connect());
     audit.record('sender.gmail.verify', 'success');
     json(res, 200, { ok: true });
-}
-
-function senderAccount(app: App, channel: CampaignChannel, settings: AppSettings): string | null {
-    if (channel === 'gmail') return settings.GMAIL_APP_PASSWORD ? senderAccountId('gmail', settings) : null;
-    const link = app.whatsapp.state();
-    return link.status === 'linked' ? senderAccountId('whatsapp', settings, link.account) : null;
 }
 
 async function changeWhatsApp(audit: RequestAudit, action: string, operation: () => unknown): Promise<void> {

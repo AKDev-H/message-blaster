@@ -25,9 +25,6 @@ export interface SequenceStep {
     mode: RunMode;
 }
 
-// A "Send both" run: the next channel starts only after the current one completes in this
-// process. Anything else (pause, cancel, failure, restart) leaves the rest pending in the
-// database until someone explicitly resumes it.
 interface Sequence {
     group: CampaignGroup;
     current: string;
@@ -85,7 +82,6 @@ export class WebRunner {
         this.start(campaign, mode, audit, target);
     }
 
-    // Validates every step before the first one starts, then runs them one after another.
     launchSequence(group: CampaignGroup, steps: readonly SequenceStep[], approve: unknown, audit: RequestAudit): void {
         this.ensureIdle();
         this.checkApproval(group.slug, approve);

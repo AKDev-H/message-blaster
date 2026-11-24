@@ -39,7 +39,6 @@ function waitForReturn() {
             const response = await fetch('/api/campaigns', { cache: 'no-store' });
             if (response.ok) window.location.replace('/');
         } catch {
-            // Keep polling while the dashboard is unavailable.
         }
     }, POLL_MS);
 }

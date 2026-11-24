@@ -27,8 +27,6 @@ export async function readDraft(form: FormData, previousWorkbook?: Buffer) {
     };
 }
 
-// A channel inherits each shared value unless the form sends that channel's own field,
-// such as `gmail.subject` or `whatsapp.script`. WhatsApp has no subject.
 export function channelDraft(form: FormData, draft: Draft, channel: CampaignChannel): ChannelDraft {
     const overrides: DraftField[] = [];
     const content: ChannelDraft = { ...draft, overrides };

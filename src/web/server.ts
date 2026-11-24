@@ -19,13 +19,21 @@ import { json, sendAsset, sendError, sendPage, setSecurityHeaders, validateOrigi
 import { readCampaignId } from './input/index.js';
 import { LiveUpdates } from './live-updates.js';
 import { WebRunner } from './runner.js';
+import { campaignGroupRoutes, groupExists } from './routes/campaign-groups.js';
 import { CAMPAIGN_PATH, campaignRoutes } from './routes/campaigns.js';
 import { fileRoutes } from './routes/files.js';
 import { findRoute, type App } from './routes/route.js';
 import { settingsRoutes } from './routes/settings.js';
 
-const ROUTES = [...campaignRoutes, ...fileRoutes, ...settingsRoutes];
+const ROUTES = [...campaignGroupRoutes, ...campaignRoutes, ...fileRoutes, ...settingsRoutes];
+const CAMPAIGN_PAGE = /^\/campaigns\/([^/]+)$/u;
 const MAINTENANCE_RETRY_SECONDS = 120;
+const PUBLIC_ASSET_PREFIXES = ['/fonts/', '/vendor/', '/favicon.', '/manifest.webmanifest'];
+const PUBLIC_ASSETS = new Set(['/auth.css', '/login.mjs', '/login-bg.jpg', '/logo.png', '/brand.css']);
+
+function isPublicAsset(pathname: string): boolean {
+    return PUBLIC_ASSETS.has(pathname) || PUBLIC_ASSET_PREFIXES.some(prefix => pathname.startsWith(prefix));
+}
 const PAGE_PREVIEWS: Record<string, [StatusPage, number]> = {
     '/errors/404': ['not-found', 404],
     '/errors/500': ['server-error', 500],
@@ -131,7 +139,7 @@ async function route(req: IncomingMessage, res: ServerResponse, app: App, site: 
     const isApiCall = pathname.startsWith('/api/');
     validateOrigin(req, auth.origin, isApiCall);
     const asset = site.assets.get(pathname);
-    if (req.method === 'GET' && ['/auth.css', '/login.mjs', '/login-bg.jpg', '/logo.png', '/favicon.svg'].includes(pathname) && asset) return sendAsset(req, res, asset);
+    if (req.method === 'GET' && asset && isPublicAsset(pathname)) return sendAsset(req, res, asset);
     if (await auth.handle(req, res, pathname, searchParams)) return;
     const session = auth.authenticate(req);
     if (!session) {
@@ -152,6 +160,11 @@ async function route(req: IncomingMessage, res: ServerResponse, app: App, site: 
     if (req.method === 'GET' && asset) {
         if (asset.type.startsWith('text/html')) return sendPage(res, 200, asset.body);
         return sendAsset(req, res, asset);
+    }
+    const campaignPage = CAMPAIGN_PAGE.exec(pathname);
+    if (req.method === 'GET' && campaignPage) {
+        if (!groupExists(app, decodeSlug(campaignPage[1]!))) throw new HttpError(404, 'This campaign does not exist.');
+        return sendPage(res, 200, site.assets.get('/')!.body);
     }
     const preview = PAGE_PREVIEWS[pathname];
     if (req.method === 'GET' && preview) return sendPage(res, preview[1], site.pages.get(preview[0])!);
@@ -190,6 +203,14 @@ function wantsPage(req: IncomingMessage): boolean {
 function requestUrl(req: IncomingMessage): URL {
     if (!req.url?.startsWith('/') || req.url.startsWith('//')) throw new HttpError(400, 'Invalid request path.');
     return new URL(req.url, 'http://127.0.0.1');
+}
+
+function decodeSlug(encoded: string): string {
+    try {
+        return decodeURIComponent(encoded);
+    } catch {
+        return '';
+    }
 }
 
 function notFound(pathname: string): HttpError {

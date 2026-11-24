@@ -20,3 +20,7 @@ export function fileKind(name) {
 export function extensionOf(name) {
     return name.slice(name.lastIndexOf('.') + 1).toLowerCase();
 }
+
+export function channelList(channels) {
+    return channels.map(channel => CHANNEL_LABELS[channel]).join(' + ');
+}

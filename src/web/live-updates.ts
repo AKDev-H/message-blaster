@@ -1,4 +1,4 @@
-import type { ServerResponse } from 'node:http';
+import type { ServerResponse } from "node:http";
 
 const PROGRESS_CHECK_MS = 500;
 const HEARTBEAT_MS = 15_000;
@@ -14,7 +14,10 @@ export class LiveUpdates {
     #closing = false;
     #timers: NodeJS.Timeout[] = [];
 
-    constructor(private readonly dataVersion: () => number, private readonly snapshot: () => unknown) {}
+    constructor(
+        private readonly dataVersion: () => number,
+        private readonly snapshot: () => unknown,
+    ) {}
 
     get revision(): number {
         return this.#revision;
@@ -23,9 +26,13 @@ export class LiveUpdates {
     start(): void {
         const keepAlive = () => {
             this.revalidate();
-            for (const client of this.#subscribers.keys()) this.write(client, ': keep-alive\n\n', false);
+            for (const client of this.#subscribers.keys())
+                this.write(client, ": keep-alive\n\n", false);
         };
-        this.#timers = [setInterval(() => this.publishSafely(), PROGRESS_CHECK_MS).unref(), setInterval(keepAlive, HEARTBEAT_MS).unref()];
+        this.#timers = [
+            setInterval(() => this.publishSafely(), PROGRESS_CHECK_MS).unref(),
+            setInterval(keepAlive, HEARTBEAT_MS).unref(),
+        ];
     }
 
     changed(): void {
@@ -40,9 +47,13 @@ export class LiveUpdates {
     }
 
     subscribe(res: ServerResponse, sessionActive: () => boolean): void {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+        res.writeHead(200, {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no",
+        });
         this.#subscribers.set(res, sessionActive);
-        res.on('close', () => this.forget(res));
+        res.on("close", () => this.forget(res));
         this.write(res, `retry: 2000\n${this.event()}`);
     }
 
@@ -57,7 +68,6 @@ export class LiveUpdates {
             try {
                 if (sessionActive()) continue;
             } catch {
-                // Close the stream if access can no longer be verified.
             }
             this.forget(client);
             client.end();
@@ -82,21 +92,26 @@ export class LiveUpdates {
         this.#dirty = false;
         this.#revision += 1;
         const event = this.event();
-        for (const client of this.#subscribers.keys()) this.write(client, event);
+        for (const client of this.#subscribers.keys())
+            this.write(client, event);
     }
 
     private event(): string {
         return `data: ${JSON.stringify(this.snapshot())}\n\n`;
     }
 
-    private write(client: ServerResponse, event: string, isUpdate = true): void {
+    private write(
+        client: ServerResponse,
+        event: string,
+        isUpdate = true,
+    ): void {
         if (this.#blocked.has(client)) {
             if (isUpdate) this.#pending.add(client);
             return;
         }
         if (client.write(event)) return;
         this.#blocked.add(client);
-        client.once('drain', () => this.onDrain(client));
+        client.once("drain", () => this.onDrain(client));
     }
 
     private onDrain(client: ServerResponse): void {
