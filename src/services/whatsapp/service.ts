@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { setTimeout as delay } from 'node:timers/promises';
 import makeWASocket, {
-    DisconnectReason, type BaileysEventMap, type BinaryNode, type WAMessageKey, type WASocket,
+    DisconnectReason, jidNormalizedUser, type BaileysEventMap, type BinaryNode, type WAMessageKey, type WASocket,
 } from '@whiskeysockets/baileys';
 import type { Logger } from 'pino';
 import qrcode from 'qrcode-terminal';
@@ -147,6 +147,15 @@ export class WhatsAppService implements MessageTransport {
         if (!/^\+[1-9]\d{5,14}$/.test(message.phone)) throw new Error('A normalized international phone number is required.');
         this.verifyLinkedAccount(socket);
         await this.submit(socket, message);
+    }
+
+    async sendToSelf(text: string): Promise<void> {
+        const socket = this.connectedSocket();
+        this.verifyLinkedAccount(socket);
+        const self = socket.user?.id ? jidNormalizedUser(socket.user.id) : undefined;
+        if (!self) throw new Error('WhatsApp did not provide the linked account number.');
+        const timeout = AbortSignal.timeout(SUBMISSION_TIMEOUT_MS);
+        await withAbort(socket.sendMessage(self, { text, linkPreview: null }), timeout);
     }
 
     private connectedSocket(): WASocket {

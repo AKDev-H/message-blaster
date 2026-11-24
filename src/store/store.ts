@@ -55,6 +55,10 @@ export class Store {
         return groups.findGroup(this.db, slug);
     }
 
+    groupOfCampaign(id: string): groups.CampaignGroup | undefined {
+        return groups.groupOfCampaign(this.db, id);
+    }
+
     groupMembers(group: groups.CampaignGroup): CampaignSummary[] {
         return groups.groupMembers(this.db, group.id);
     }
@@ -128,8 +132,8 @@ export class Store {
         return recipients.listMessages(this.db, id);
     }
 
-    listMessagePage(id: string, page: number, pageSize: number): recipients.MessagePage {
-        return recipients.listMessagePage(this.db, id, page, pageSize);
+    listMessagePage(id: string, page: number, pageSize: number, filter?: recipients.RecipientFilter): recipients.MessagePage {
+        return recipients.listMessagePage(this.db, id, page, pageSize, filter);
     }
 
     progress(id: string): Record<MessageStatus, number> {

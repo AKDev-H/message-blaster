@@ -41,6 +41,12 @@ test('web drafts retain editable inputs, replace atomically and paginate the new
     assert.deepEqual(result.rows.map(message => message.rowNumber), [4]);
     assert.equal(result.page, 2);
     assert.equal(result.totalPages, 2);
+    store.replaceWebDraft('draft', [row(3), row(2, { consentStatus: 'Not Opted In' }), row(4)], updated);
+    const skipped = store.listMessagePage('draft', 1, 2, 'skipped');
+    assert.deepEqual(skipped.rows.map(message => message.rowNumber), [2]);
+    assert.equal(skipped.totalPages, 1);
+    assert.deepEqual(store.listMessagePage('draft', 2, 1, 'queued').rows.map(message => message.rowNumber), [4]);
+    assert.deepEqual(store.listMessagePage('draft', 1, 5, 'failed').rows, []);
     store.bindAccount('draft', 'account');
     assert.throws(() => store.replaceWebDraft('draft', [row(5)], updated), /never started/);
 });

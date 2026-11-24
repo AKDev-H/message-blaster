@@ -79,6 +79,7 @@ describe('Campaign detail pages', () => {
     it('keeps private campaign links and their exports behind sign-in', () => {
         cy.openDashboard();
         importCombined('private-campaign');
+        cy.get('#user-menu summary').click();
         cy.get('#sign-out').click();
         cy.location('pathname').should('eq', '/login');
         cy.request({ url: '/campaigns/private-campaign', followRedirect: false }).its('redirectedToUrl').should('include', '/login');

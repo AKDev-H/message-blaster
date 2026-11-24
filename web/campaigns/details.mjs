@@ -2,7 +2,7 @@ import { channelMarks } from '../shared/brands.mjs';
 import { element, get, groupPath, request, setError } from '../shared/ui.mjs';
 import { buttonSignature, channelButtons, groupButtons } from './actions.mjs';
 import {
-    channelCard, channelHeading, describeCampaign, metricTiles, OVERVIEW, paginate, sendPlanNotice, skeletonRecipientRows, viewTab,
+    ALL_RECIPIENTS, channelCard, channelHeading, describeCampaign, metricTiles, OVERVIEW, paginate, sendPlanNotice, skeletonRecipientRows, viewTab,
 } from './detail-parts.mjs';
 import { emptyRecipientRow, recipientRow } from './recipient-rows.mjs';
 import { badge, statusOf } from './status.mjs';
@@ -15,6 +15,7 @@ export class CampaignDetails {
     #tabs = get('detail-tabs');
     #slug = '';
     #view = OVERVIEW;
+    #filter = ALL_RECIPIENTS;
     #pages = new Map();
     #detail = null;
     #rows = null;
@@ -26,6 +27,7 @@ export class CampaignDetails {
         get('previous-page').addEventListener('click', () => this.#turnPage(-1));
         get('next-page').addEventListener('click', () => this.#turnPage(1));
         this.#tabs.addEventListener('keydown', event => this.#moveTab(event));
+        get('detail-summary').addEventListener('keydown', event => moveFocus(event, get('detail-summary')));
     }
 
     get selected() {
@@ -76,10 +78,22 @@ export class CampaignDetails {
     #select(view) {
         if (!this.#detail || this.#view === view) return;
         this.#view = view;
+        this.#filter = ALL_RECIPIENTS;
         this.#rows = null;
         if (view !== OVERVIEW) this.#recipientRows.replaceChildren(...skeletonRecipientRows());
         this.#render();
         if (view !== OVERVIEW) this.reload();
+    }
+
+    #filterBy(key) {
+        if (this.#filter === key) return;
+        this.#filter = key;
+        this.#pages.delete(this.#view);
+        this.#rows = null;
+        this.#recipientRows.replaceChildren(...skeletonRecipientRows());
+        paginate(1, 1);
+        this.#render();
+        this.reload();
     }
 
     #viewFor(detail) {
@@ -88,7 +102,8 @@ export class CampaignDetails {
     }
 
     #rowsUrl(channel) {
-        return `${groupPath(this.#slug)}/${channel}?page=${this.#pages.get(channel) ?? 1}`;
+        const status = this.#filter === ALL_RECIPIENTS ? '' : `&status=${this.#filter}`;
+        return `${groupPath(this.#slug)}/${channel}?page=${this.#pages.get(channel) ?? 1}${status}`;
     }
 
     #show(detail, view, rows) {
@@ -103,6 +118,7 @@ export class CampaignDetails {
     #reset(slug) {
         this.#slug = slug;
         this.#view = OVERVIEW;
+        this.#filter = ALL_RECIPIENTS;
         this.#pages.clear();
         this.#detail = null;
         this.#rows = null;
@@ -126,7 +142,13 @@ export class CampaignDetails {
         get('detail-notice').textContent = notice;
         get('detail-notice').hidden = !notice;
         const shown = channel && combined ? { ...channel.metrics, peopleSent: channel.metrics.completed } : metrics;
-        get('detail-summary').replaceChildren(...metricTiles(shown, channels));
+        const filter = channel ? { active: this.#filter, onSelect: key => this.#filterBy(key) } : null;
+        const summary = get('detail-summary');
+        const focused = summary.contains(document.activeElement) ? document.activeElement.dataset.detailMetric : '';
+        summary.setAttribute('role', filter ? 'tablist' : 'group');
+        summary.setAttribute('aria-label', filter ? 'Filter recipients' : 'Campaign totals');
+        summary.replaceChildren(...metricTiles(shown, channels, filter));
+        if (focused) summary.querySelector(`[data-detail-metric="${focused}"]`)?.focus({ preventScroll: true });
         get('detail-channels').hidden = Boolean(channel);
         if (!channel) get('detail-channels').replaceChildren(...channels.map(item => channelCard(item, view => this.#select(view))));
         get('detail-recipients').hidden = !channel;
@@ -200,6 +222,16 @@ export class CampaignDetails {
         this.#recipientRows.replaceChildren(...skeletonRecipientRows(this.#recipientRows.rows.length));
         this.reload();
     }
+}
+
+function moveFocus(event, list) {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const index = tabs.indexOf(document.activeElement);
+    if (index < 0) return;
+    const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+    next.click();
+    next.focus();
 }
 
 function replaceButtons(container, signature, build) {

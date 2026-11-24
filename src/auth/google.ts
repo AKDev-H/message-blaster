@@ -4,6 +4,8 @@ export interface GoogleIdentity {
     subject: string;
     email: string;
     emailVerified: boolean;
+    name?: string;
+    picture?: string;
     hostedDomain?: string;
     nonce?: string;
 }
@@ -23,7 +25,7 @@ export function createGoogleProvider(config: GoogleClientConfig): GoogleProvider
     const client = new OAuth2Client({ ...config, transporterOptions: { timeout: 10_000 } });
     return {
         authorize: ({ state, nonce, challenge }) => client.generateAuthUrl({
-            scope: ['openid', 'email'],
+            scope: ['openid', 'email', 'profile'],
             prompt: 'select_account',
             state,
             nonce,
@@ -42,6 +44,8 @@ export function createGoogleProvider(config: GoogleClientConfig): GoogleProvider
                 subject: claims.sub,
                 email: claims.email,
                 emailVerified: claims.email_verified === true,
+                ...(claims.name && { name: claims.name }),
+                ...(claims.picture && { picture: claims.picture }),
                 ...(claims.hd && { hostedDomain: claims.hd }),
                 ...(claims.nonce && { nonce: claims.nonce }),
             };

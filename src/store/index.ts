@@ -8,3 +8,4 @@ export {
     type SharedContent,
 } from './groups.js';
 export type { PairCandidate } from './pairs.js';
+export { RECIPIENT_FILTERS, type RecipientFilter } from './recipients.js';

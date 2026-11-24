@@ -2,7 +2,7 @@ import { followLink, replaceSearch } from '../router.mjs';
 import { channelMarks } from '../shared/brands.mjs';
 import { icon } from '../shared/icons.mjs';
 import { channelList } from '../shared/labels.mjs';
-import { button, campaignPage, element, get, link, number, replayAnimation, request } from '../shared/ui.mjs';
+import { button, campaignPage, element, get, link, number, pageWindow, replayAnimation, request } from '../shared/ui.mjs';
 import { badge, formatDate, progressBar, progressText, statusOf } from './status.mjs';
 
 const TOTAL_METRICS = ['queued', 'processing', 'completed', 'failed'];
@@ -240,11 +240,6 @@ function viewCell(campaign) {
     const view = openLink(link('View', campaignPage(campaign.slug), 'button ghost small', 'chevron-right'), campaign.slug);
     view.setAttribute('aria-label', `View ${campaign.name}`);
     return cell(view, 'open-cell');
-}
-
-function pageWindow(current, total) {
-    const pages = [...new Set([1, current - 1, current, current + 1, total])].filter(page => page >= 1 && page <= total).sort((a, b) => a - b);
-    return pages.flatMap((page, index) => (index > 0 && page - pages[index - 1] > 1 ? ['gap', page] : [page]));
 }
 
 async function holdSkeleton(started) {

@@ -124,3 +124,8 @@ function reportError(fields, generalErrorId, show, error) {
     show(field, error.message);
     fields[field].focus();
 }
+
+export function pageWindow(current, total) {
+    const pages = [...new Set([1, current - 1, current, current + 1, total])].filter(page => page >= 1 && page <= total).sort((a, b) => a - b);
+    return pages.flatMap((page, index) => (index > 0 && page - pages[index - 1] > 1 ? ['gap', page] : [page]));
+}

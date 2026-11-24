@@ -8,10 +8,11 @@ import { dropClientIdMigration } from './migrations/006-drop-client-id.js';
 import { authMigration } from './migrations/007-auth.js';
 import { campaignGroupsMigration } from './migrations/008-campaign-groups.js';
 import { interruptedAtMigration } from './migrations/009-interrupted-at.js';
+import { userProfileMigration } from './migrations/010-user-profile.js';
 import { transaction } from './transaction.js';
 
 const migrations = [initialMigration, gmailMigration, webMigration, richScriptsMigration, settingsMigration, dropClientIdMigration, authMigration,
-    campaignGroupsMigration, interruptedAtMigration];
+    campaignGroupsMigration, interruptedAtMigration, userProfileMigration];
 const latestVersion = migrations.length;
 
 export function migrate(db: DatabaseSync): void {

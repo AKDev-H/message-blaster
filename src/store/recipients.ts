@@ -14,9 +14,17 @@ const INSERT_MESSAGE = `
 const LIST_MESSAGES = `
     SELECT m.*, c.channel FROM messages m JOIN campaigns c ON c.id = m.campaign_id WHERE c.id = ? ORDER BY m.row_number
 `;
-const MESSAGE_PAGE = `
-    SELECT m.*, ? AS channel FROM messages m WHERE m.campaign_id = ? ORDER BY m.row_number LIMIT ? OFFSET ?
-`;
+export const RECIPIENT_FILTERS = {
+    completed: ['SENT', 'DELIVERED', 'READ'],
+    failed: ['FAILED'],
+    unknown: ['UNKNOWN'],
+    queued: ['PENDING', 'VALIDATING', 'QUEUED'],
+    processing: ['SENDING'],
+    delivered: ['DELIVERED', 'READ'],
+    read: ['READ'],
+    skipped: ['SKIPPED'],
+} as const satisfies Record<string, readonly MessageStatus[]>;
+export type RecipientFilter = keyof typeof RECIPIENT_FILTERS;
 const STATUS_COUNTS = 'SELECT status, count(*) AS total FROM messages WHERE campaign_id = ? GROUP BY status';
 
 export interface MessagePage {
@@ -48,12 +56,16 @@ export function listMessages(db: DatabaseSync, id: string): MessageRecord[] {
     return db.prepare(LIST_MESSAGES).all(id).map(toMessageRecord);
 }
 
-export function listMessagePage(db: DatabaseSync, id: string, page: number, pageSize: number): MessagePage {
+export function listMessagePage(db: DatabaseSync, id: string, page: number, pageSize: number, filter?: RecipientFilter): MessagePage {
     if (!isPositiveInteger(page) || !isPositiveInteger(pageSize)) throw new Error('Use a positive page and page size');
     const campaign = getCampaignSummary(db, id);
-    const totalPages = Math.max(1, Math.ceil(campaign.total / pageSize));
+    const statuses: readonly string[] = filter ? RECIPIENT_FILTERS[filter] : [];
+    const where = `m.campaign_id = ?${statuses.length ? ` AND m.status IN (${statuses.map(() => '?').join(', ')})` : ''}`;
+    const matching = Number(db.prepare(`SELECT count(*) AS n FROM messages m WHERE ${where}`).get(id, ...statuses)?.n);
+    const totalPages = Math.max(1, Math.ceil(matching / pageSize));
     const shown = Math.min(page, totalPages);
-    const rows = db.prepare(MESSAGE_PAGE).all(campaign.channel, id, pageSize, (shown - 1) * pageSize).map(toMessageRecord);
+    const rows = db.prepare(`SELECT m.*, ? AS channel FROM messages m WHERE ${where} ORDER BY m.row_number LIMIT ? OFFSET ?`)
+        .all(campaign.channel, id, ...statuses, pageSize, (shown - 1) * pageSize).map(toMessageRecord);
     return { rows, page: shown, totalPages };
 }
 

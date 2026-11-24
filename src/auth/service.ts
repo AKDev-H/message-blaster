@@ -72,7 +72,7 @@ export class AuthService {
         if (identity.nonce !== flow.nonce || !identity.emailVerified || !identity.subject) return this.rejectLogin('denied');
         const sessionToken = token();
         const expiresAt = this.now() + SESSION_LIFETIME_MS;
-        const user = this.store.createSession(identity.subject, inviteAddress(identity), hash(sessionToken), expiresAt);
+        const user = this.store.createSession(identity.subject, inviteAddress(identity), hash(sessionToken), expiresAt, identity);
         return user && { token: sessionToken, expiresAt, user };
     }
 

@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { AuthService } from '../auth/service.js';
 import type { BaseEnvironment } from '../config/env.js';
 import { closeDatabases, openApp, type OpenedApp } from './app.js';
+import { scheduleAuditCleanup } from './audit-cleanup.js';
 import { RequestAudit } from './auth/audit.js';
 import { webAuthConfig, type WebAuthOptions } from './auth/config.js';
 import { DashboardAuth, redirect } from './auth/http.js';
@@ -16,6 +17,7 @@ import { Site } from './site.js';
 interface Dependencies extends OpenedApp {
     site: Site;
     auth?: DashboardAuth;
+    auditCleanup?: { stop(): void };
     closing: boolean;
 }
 
@@ -40,6 +42,7 @@ export async function startWebServer(env: BaseEnvironment, requestedPort = env.W
         throw error;
     }
     deps.app.updates.start();
+    deps.auditCleanup = scheduleAuditCleanup(deps.app.authStore);
     return { url: config.origin.origin, close: runOnce(() => shutDown(server, deps)) };
 }
 
@@ -108,6 +111,7 @@ async function listen(server: Server, port: number, deps: Dependencies): Promise
 
 async function shutDown(server: Server, deps: Dependencies): Promise<void> {
     deps.closing = true;
+    deps.auditCleanup?.stop();
     deps.app.updates.close();
     const stopped = new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
     try {

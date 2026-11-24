@@ -40,7 +40,32 @@
                     <i data-icon="eye" data-size="14"></i>Preview mode
                 </span>
                 <button type="button" class="button primary" id="create-campaign"><i data-icon="plus"></i><span>New campaign</span></button>
-                <button class="nav-item" type="button" id="sign-out" aria-label="Sign out"><i data-icon="log-out"></i><span>Sign out</span></button>
+                <details class="menu user-menu" id="user-menu">
+                    <summary class="user-trigger" id="user-menu-trigger" aria-haspopup="menu" aria-label="User account menu">
+                        <span class="user-avatar" id="user-avatar">…</span>
+                        <span class="user-name" id="user-name">Loading…</span>
+                        <i data-icon="chevron-down" data-size="13"></i>
+                    </summary>
+                    <div class="user-menu-dropdown" role="menu">
+                        <div class="user-menu-profile">
+                            <span class="user-menu-avatar" id="user-menu-avatar-large"></span>
+                            <div class="user-menu-details">
+                                <span class="user-menu-name" id="user-menu-name"></span>
+                                <span class="user-menu-email" id="user-menu-email"></span>
+                                <span class="user-menu-badge" id="user-menu-role"></span>
+                            </div>
+                        </div>
+                        <div class="menu-divider"></div>
+                        <a role="menuitem" href="/audit" id="user-menu-audit" class="menu-item" hidden>
+                            <i data-icon="clipboard-list" data-size="14"></i>
+                            <span>Audit log</span>
+                        </a>
+                        <button role="menuitem" class="menu-item danger" type="button" id="sign-out">
+                            <i data-icon="log-out" data-size="14"></i>
+                            <span>Sign out</span>
+                        </button>
+                    </div>
+                </details>
             </div>
         </div>
     </header>
@@ -120,7 +145,7 @@
         <section class="panel details-panel" id="details" aria-labelledby="detail-heading" hidden>
             <header class="panel-head detail-head">
                 <div class="detail-title">
-                    <button class="icon-button" type="button" id="close-detail" aria-label="Close campaign details"><i data-icon="x"></i><i data-icon="chevron-left" data-size="22"></i></button>
+                    <button class="icon-button" type="button" id="close-detail" aria-label="Back to campaigns"><i data-icon="arrow-left"></i></button>
                     <div>
                         <div class="detail-heading-row"><h2 id="detail-heading" tabindex="-1"></h2><span id="detail-state"></span></div>
                         <p class="detail-description" id="detail-description"></p>

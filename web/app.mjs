@@ -6,11 +6,12 @@ import { currentRoute, followLink, navigate, onRouteChange } from './router.mjs'
 import { SettingsDialog } from './settings/settings.mjs';
 import { hydrateBrands } from './shared/brands.mjs';
 import { hydrateIcons } from './shared/icons.mjs';
-import { campaignPage, get, request, setError, whileBusy } from './shared/ui.mjs';
+import { campaignPage, get, setError } from './shared/ui.mjs';
 import { FileViewer } from './viewer/viewer.mjs';
 
+import { wireAccountNav } from './shared/account.mjs';
+
 const RECONNECT_CHECK_MS = 5000;
-// The server pings every 15s, so 40s of silence means the stream is dead.
 const STALE_STREAM_MS = 40_000;
 const LIST_TITLE = 'Campaigns | Message Blaster';
 
@@ -41,7 +42,7 @@ const confirmation = new ConfirmDialog(async action => {
 
 wireDialogs();
 wireToolbar();
-wireAccount();
+wireAccountNav({ onError: showLoadError });
 followLiveUpdates();
 onRouteChange(showRoute);
 showRoute();
@@ -106,7 +107,7 @@ function followLiveUpdates() {
         events.addEventListener('ping', seen);
         events.addEventListener('error', () => setConnection('offline', 'Reconnecting…'));
     };
-    // After sleep the socket can look OPEN while it is dead, so a wake always re-fetches and replaces a silent stream.
+
     const catchUp = () => {
         if (document.visibilityState !== 'visible') return;
         if (isStale()) connect();
@@ -150,21 +151,6 @@ function wireToolbar() {
     get('empty-action').addEventListener('click', () => (queue.hasCampaigns ? queue.clearFilters() : composer.open()));
     for (const home of [get('nav-campaigns'), document.querySelector('.brand')]) home.addEventListener('click', event => followLink(event, '/'));
     wireTemplateMenu(get('template-menu'));
-}
-
-function wireAccount() {
-    const control = get('sign-out');
-    request('/api/session').then(({ user }) => {
-        get('open-audit').hidden = user.role !== 'admin';
-    }).catch(showLoadError);
-    control.addEventListener('click', () => void whileBusy(control, async () => {
-        try {
-            await request('/auth/logout', { method: 'POST' });
-            window.location.replace('/login');
-        } catch (error) {
-            showLoadError(error);
-        }
-    }));
 }
 
 function wireTemplateMenu(menu) {

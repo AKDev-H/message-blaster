@@ -10,15 +10,23 @@ export const accountRoutes: Route[] = [
 ];
 
 function auditPage({ res, query }: Request, app: App): void {
-    const before = auditCursor(query.get('before'));
-    const events = app.authStore.listAudit(before, AUDIT_PAGE_SIZE + 1);
-    const page = events.slice(0, AUDIT_PAGE_SIZE);
-    json(res, 200, { events: page, next: events.length > AUDIT_PAGE_SIZE ? page.at(-1)?.id : null });
+    const from = timestamp(query.get('from'));
+    const to = timestamp(query.get('to'));
+    if (from !== undefined && to !== undefined && from > to) throw new HttpError(400, 'The audit range must start before it ends.');
+    const range = { ...(from !== undefined && { from }), ...(to !== undefined && { to }) };
+    json(res, 200, app.authStore.auditPage(pageNumber(query.get('page')), AUDIT_PAGE_SIZE, range));
 }
 
-function auditCursor(cursor: string | null): number | undefined {
-    if (cursor === null) return undefined;
-    const before = Number(cursor);
-    if (!Number.isSafeInteger(before) || before < 1) throw new HttpError(400, 'Invalid audit cursor.');
-    return before;
+function timestamp(value: string | null): number | undefined {
+    if (value === null || value === '') return undefined;
+    const time = Number(value);
+    if (!Number.isSafeInteger(time) || time < 0) throw new HttpError(400, 'Invalid audit date range.');
+    return time;
+}
+
+function pageNumber(value: string | null): number {
+    if (value === null) return 1;
+    const page = Number(value);
+    if (!Number.isSafeInteger(page) || page < 1) throw new HttpError(400, 'Invalid audit page.');
+    return page;
 }

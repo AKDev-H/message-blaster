@@ -2,24 +2,118 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#ffffff">
     <title>Audit log · Message Blaster</title>
-    <link rel="stylesheet" href="/auth.css">
-    <script defer src="/vendor/lucide.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
+    <link rel="preload" href="/fonts/instrument.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/brand.css">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/vendor/lucide.js"></script>
     <script type="module" src="/audit.mjs"></script>
 </head>
-<body class="audit-page">
-    <main>
-        <a href="/">Back to dashboard</a>
-        <h1>Audit log</h1>
-        <p id="audit-status" role="status"></p>
-        <div class="audit-table">
-            <table>
-                <thead><tr><th>Time</th><th>Actor ID</th><th>Source</th><th>Action</th><th>Target</th><th>Outcome</th><th>Request ID</th></tr></thead>
-                <tbody id="audit-rows"></tbody>
-            </table>
+<body class="audit-page-body">
+    <a class="skip-link" href="#main">Skip to audit log</a>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="/" aria-label="Message Blaster home">
+                <span class="brand-mark"><i data-icon="megaphone" data-size="15"></i></span>
+                <span class="brand-name">Message Blaster</span>
+            </a>
+            <nav class="topnav" aria-label="Workspace">
+                <a class="nav-item" href="/" id="nav-campaigns"><i data-icon="layout-list"></i><span>Campaigns</span></a>
+                <a class="nav-item" href="/audit" id="open-audit" aria-current="page"><i data-icon="clipboard-list"></i><span>Audit log</span></a>
+            </nav>
+            <div class="topbar-status">
+                <a href="/" class="button secondary small"><i data-icon="arrow-left" data-size="14"></i><span>Back to dashboard</span></a>
+                <details class="menu user-menu" id="user-menu">
+                    <summary class="user-trigger" id="user-menu-trigger" aria-haspopup="menu" aria-label="User account menu">
+                        <span class="user-avatar" id="user-avatar">…</span>
+                        <span class="user-name" id="user-name">Loading…</span>
+                        <i data-icon="chevron-down" data-size="13"></i>
+                    </summary>
+                    <div class="user-menu-dropdown" role="menu">
+                        <div class="user-menu-profile">
+                            <span class="user-menu-avatar" id="user-menu-avatar-large"></span>
+                            <div class="user-menu-details">
+                                <span class="user-menu-name" id="user-menu-name"></span>
+                                <span class="user-menu-email" id="user-menu-email"></span>
+                                <span class="user-menu-badge" id="user-menu-role"></span>
+                            </div>
+                        </div>
+                        <div class="menu-divider"></div>
+                        <a role="menuitem" href="/audit" id="user-menu-audit" class="menu-item" hidden>
+                            <i data-icon="clipboard-list" data-size="14"></i>
+                            <span>Audit log</span>
+                        </a>
+                        <button role="menuitem" class="menu-item danger" type="button" id="sign-out">
+                            <i data-icon="log-out" data-size="14"></i>
+                            <span>Sign out</span>
+                        </button>
+                    </div>
+                </details>
+            </div>
         </div>
-        <button id="audit-more" type="button" hidden>Load older events</button>
+    </header>
+
+    <main id="main" tabindex="-1">
+        <section class="overview audit-overview" aria-labelledby="page-title">
+            <div class="overview-title-group">
+                <h1 id="page-title">Audit log</h1>
+                <p class="overview-count" id="audit-count" aria-live="polite">Security and operational activity trail</p>
+            </div>
+            <div class="audit-overview-actions">
+                <button type="button" class="button secondary small" id="audit-refresh"><i data-icon="refresh-cw" data-size="13"></i><span>Refresh</span></button>
+            </div>
+        </section>
+
+        <section class="panel audit-panel" aria-labelledby="page-title">
+            <header class="queue-toolbar audit-toolbar">
+                <div class="audit-filters" role="group" aria-label="Filter audit events">
+                    <div id="audit-date-range"></div>
+                    <button type="button" class="button ghost small" id="audit-reset" hidden><i data-icon="rotate-ccw" data-size="13"></i><span>Reset</span></button>
+                </div>
+                <div class="toolbar-end">
+                    <span class="muted" id="audit-status" role="status"></span>
+                </div>
+            </header>
+
+            <div class="table-wrap audit-table-wrap">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Time</th>
+                            <th scope="col">Actor name</th>
+                            <th scope="col">Actor email</th>
+                            <th scope="col">Source</th>
+                            <th scope="col">Action</th>
+                            <th scope="col">Target</th>
+                            <th scope="col">Outcome</th>
+                            <th scope="col">Request ID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-rows" aria-busy="true"></tbody>
+                </table>
+            </div>
+
+            <footer class="pagination audit-pagination" id="audit-pagination" hidden>
+                <span class="pagination-range" id="audit-range"></span>
+                <nav class="page-buttons" aria-label="Audit log pages">
+                    <button class="icon-button" id="audit-previous" type="button" aria-label="Previous page of audit events"><i data-icon="chevron-left"></i></button>
+                    <span class="page-list" id="audit-pages"></span>
+                    <button class="icon-button" id="audit-next" type="button" aria-label="Next page of audit events"><i data-icon="chevron-right"></i></button>
+                </nav>
+            </footer>
+
+            <div class="empty" id="audit-empty" hidden>
+                <span class="empty-icon" aria-hidden="true"><i data-icon="clipboard-list" data-size="22"></i></span>
+                <h3 id="audit-empty-title">No audit events yet</h3>
+                <p id="audit-empty-copy">System actions, logins, and operations will be logged here. Events older than 90 days are removed automatically.</p>
+            </div>
+        </section>
     </main>
 </body>
 </html>

@@ -24,8 +24,11 @@ export function describeCampaign({ campaign, channels, metrics }) {
     return `${label}, ${plural(metrics.people, 'person', 'people')}`;
 }
 
-export function metricTiles(metrics, channels) {
-    return METRICS.filter(([key, , always]) => always || metrics[key]).map(([key, label]) => metricTile(key, label, metrics[key], channels));
+export const ALL_RECIPIENTS = 'peopleSent';
+
+export function metricTiles(metrics, channels, filter = null) {
+    return METRICS.filter(([key, , always]) => always || metrics[key] || filter?.active === key)
+        .map(([key, label]) => filter ? filterTab(key, label, metrics[key], filter) : metricTile(key, label, metrics[key], channels));
 }
 
 export function sendPlanNotice({ pending, continuing }) {
@@ -97,4 +100,17 @@ function metricTile(key, label, value, channels) {
     node.title = perChannel;
     node.append(element('strong', '', '—'), element('span', '', label), element('span', 'muted', `(${perChannel})`));
     return node;
+}
+
+function filterTab(key, label, value, { active, onSelect }) {
+    const tab = element('button', `detail-count ${key}`);
+    tab.type = 'button';
+    tab.setAttribute('role', 'tab');
+    tab.dataset.detailMetric = key;
+    const selected = key === active;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    tab.append(element('strong', '', number.format(value ?? 0)), element('span', '', label));
+    tab.addEventListener('click', () => onSelect(key));
+    return tab;
 }

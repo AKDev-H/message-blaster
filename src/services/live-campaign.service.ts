@@ -3,10 +3,13 @@ import type { Environment } from '../config/env.js';
 import { ConflictError } from '../errors.js';
 import type { Campaign, Store } from '../store/index.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignState, type MessageTransport } from '../types/index.js';
+import { errorMessage } from '../utils/fs.util.js';
 import { createLogger } from '../utils/logger.js';
 import { runCampaign } from '../workers/campaign.worker.js';
 import { wait, watchShutdown } from './shutdown.js';
+import { completionNotice } from './campaign/completion-notice.js';
 import { acquireWorkerLock } from './worker-lock.js';
+import { readWhatsAppAccount } from './whatsapp/link.js';
 import type { WhatsAppService } from './whatsapp/service.js';
 
 export { recoverInterruptedCampaigns } from './worker-lock.js';
@@ -86,7 +89,9 @@ async function sendWithGmail(delivery: Delivery): Promise<RunResult | undefined>
     const accountId = checkSenderAccount(delivery, smtp.accountId);
     await smtp.connect();
     if (shutdown.signal.aborted) return undefined;
-    const attempts = await deliver(delivery, smtp, accountId, createLogger(delivery.env), shutdown.signal);
+    const logger = createLogger(delivery.env);
+    const attempts = await deliver(delivery, smtp, accountId, logger, shutdown.signal);
+    if (!shutdown.signal.aborted) await notifyThroughLinkedWhatsApp(delivery, logger);
     return { attempts, connectionError: undefined };
 }
 
@@ -95,8 +100,36 @@ function sendWithWhatsApp(delivery: Delivery): Promise<RunResult | undefined> {
         if (signal.aborted) return undefined;
         const attempts = await deliver(delivery, socket, checkSenderAccount(delivery, socket.accountId), logger, signal);
         await wait(delivery.env.RECEIPT_WAIT_MS, signal);
+        if (!signal.aborted && socket.isReady) await notifySelf(delivery, socket, logger);
         return { attempts, connectionError: signal.aborted ? undefined : socket.connectionError };
     });
+}
+
+async function notifyThroughLinkedWhatsApp(delivery: Delivery, logger: Logger): Promise<void> {
+    if (!finishedNotice(delivery)) return;
+    const { account, loggedOut } = readWhatsAppAccount(delivery.env.AUTH_DIR);
+    if (!account || loggedOut) return;
+    try {
+        await withWhatsAppSession(delivery.store, delivery.env, false, ({ socket }) => notifySelf(delivery, socket, logger));
+    } catch (error) {
+        logger.warn({ message: errorMessage(error, 'WhatsApp unavailable') }, 'Could not send the campaign summary to WhatsApp');
+    }
+}
+
+async function notifySelf(delivery: Delivery, socket: WhatsAppService, logger: Logger): Promise<void> {
+    const text = finishedNotice(delivery);
+    if (!text) return;
+    try {
+        await socket.sendToSelf(text);
+        logger.info({ campaignId: delivery.campaign.id }, 'Campaign summary sent to the linked WhatsApp account');
+    } catch (error) {
+        logger.warn({ message: errorMessage(error, 'Send failed') }, 'Could not send the campaign summary to WhatsApp');
+    }
+}
+
+function finishedNotice({ store, campaign }: Delivery): string | undefined {
+    const group = store.groupOfCampaign(campaign.id);
+    return completionNotice(store.campaignSummary(campaign.id), group?.name ?? campaign.id);
 }
 
 function checkSenderAccount({ store, campaign }: Delivery, accountId: string | undefined): string {

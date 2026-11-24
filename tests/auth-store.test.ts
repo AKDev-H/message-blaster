@@ -121,7 +121,7 @@ test('Google provider requests identity scopes and uses PKCE S256', () => {
     const url = new URL(provider.authorize({ state: 'state', nonce: 'nonce', challenge: 'challenge' }));
     assert.equal(url.origin, 'https://accounts.google.com');
     assert.equal(url.searchParams.get('response_type'), 'code');
-    assert.equal(url.searchParams.get('scope'), 'openid email');
+    assert.equal(url.searchParams.get('scope'), 'openid email profile');
     assert.equal(url.searchParams.get('state'), 'state');
     assert.equal(url.searchParams.get('nonce'), 'nonce');
     assert.equal(url.searchParams.get('code_challenge_method'), 'S256');

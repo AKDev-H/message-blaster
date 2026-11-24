@@ -3,7 +3,7 @@ import { attachmentMimeType } from '../services/attachment.service.js';
 import { HttpError } from './http-error.js';
 
 const EXCEL_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const DASHBOARD_POLICY = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+const DASHBOARD_POLICY = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://*.googleusercontent.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const PDF_POLICY = "default-src 'none'; frame-ancestors 'self'";
 const SANDBOXED_FILE_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox; frame-ancestors 'self'";
 

@@ -41,6 +41,14 @@ test('dashboard protects private routes, revokes live streams, and persists admi
     assert.equal(settings.status, 200);
     const { events } = await (await request('/api/audit')).json() as { events: AuditEvent[] };
     assert.ok(events.some(event => event.actorId === 1 && event.action === 'sender.delivery.settings' && event.outcome === 'success'));
+    const audit = await (await request('/api/audit?page=1')).json() as { page: number; totalPages: number; total: number };
+    assert.deepEqual([audit.page, audit.totalPages], [1, 1]);
+    assert.ok(audit.total >= 1);
+    assert.equal((await request('/api/audit?page=0')).status, 400);
+    assert.equal((await request('/api/audit?from=soon')).status, 400);
+    assert.equal((await request('/api/audit?from=20&to=10')).status, 400);
+    const future = await (await request(`/api/audit?from=${Date.now() + 86_400_000}`)).json() as { total: number };
+    assert.equal(future.total, 0);
 
     const stream = await request('/api/events', { signal: AbortSignal.timeout(5_000) });
     assert.equal(stream.status, 200);
