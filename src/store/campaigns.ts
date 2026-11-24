@@ -85,7 +85,6 @@ const STATUS_CONDITIONS: Record<CampaignStatusFilter, string> = {
     failed: '(failed > 0 OR unknown > 0)',
 };
 
-/** Filters, counts and pages the campaign list in SQL; only the requested page leaves the database. */
 export function listCampaignPage(db: DatabaseSync, query: CampaignQuery): CampaignPage {
     const channelClause = query.channel ? ' AND c.channel = ?' : '';
     const channelArgs = query.channel ? [query.channel] : [];
@@ -113,7 +112,6 @@ export function listCampaignPage(db: DatabaseSync, query: CampaignQuery): Campai
     };
 }
 
-/** Campaigns that are sending or have a message in flight; the dashboard blocks starting a second one. */
 export function listActiveCampaignIds(db: DatabaseSync): string[] {
     const rows = db.prepare(`SELECT c.id FROM campaigns c WHERE c.state = 'Running'
         OR EXISTS (SELECT 1 FROM campaign_status_counts s WHERE s.campaign_id = c.id AND s.status = 'SENDING' AND s.total > 0)`).all();

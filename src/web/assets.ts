@@ -27,6 +27,7 @@ const ASSET_FILES: readonly (readonly [string, string, string])[] = [
     ['/vendor/lottie.js', '../../node_modules/lottie-web/build/player/lottie_light.min.js', SCRIPT],
     ['/favicon.svg', '../../web/favicon.svg', SVG],
     ['/favicon.ico', '../../web/favicon.svg', SVG],
+    ['/manifest.webmanifest', '../../web/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
     ['/vendor/lucide.js', '../../node_modules/lucide/dist/umd/lucide.min.js', SCRIPT],
     ['/vendor/mammoth.js', '../../node_modules/mammoth/mammoth.browser.min.js', SCRIPT],
     ['/vendor/exceljs.js', '../../node_modules/exceljs/dist/exceljs.min.js', SCRIPT],
@@ -44,13 +45,11 @@ export async function loadAssets(): Promise<Assets> {
     return new Map(entries);
 }
 
-/** HTML gets its icon placeholders rendered to SVG, so icons do not wait for the scripts to load. */
 async function readWebFile(path: string): Promise<Buffer> {
     const body = await readFile(new URL(path, import.meta.url));
     return path.endsWith('.html') ? Buffer.from(inlineIcons(body.toString('utf8'))) : body;
 }
 
-/** Changes whenever the file changes, so a redeploy is picked up on the next load. */
 function contentTag(body: Buffer): string {
     return `"${createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
 }

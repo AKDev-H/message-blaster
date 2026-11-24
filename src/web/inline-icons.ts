@@ -18,7 +18,6 @@ const BASE_ATTRIBUTES = {
 
 const componentName = (name: string) => name.replaceAll(/(?:^|-)([a-z0-9])/gu, (_, letter: string) => letter.toUpperCase());
 
-/** Same markup as `icon()` in web/shared/icons.mjs, rendered ahead of time so icons show on first paint. */
 export function iconSvg(name: string, size = DEFAULT_SIZE): string {
     const node = (icons as Record<string, IconNode>)[componentName(name)];
     if (!node) throw new Error(`Unknown icon: ${name}`);
@@ -27,7 +26,6 @@ export function iconSvg(name: string, size = DEFAULT_SIZE): string {
     return `<svg${serialize(attributes)}>${children}</svg>`;
 }
 
-/** Replaces every `<i data-icon="name" data-size="n"></i>` placeholder with its inline SVG. */
 export function inlineIcons(html: string): string {
     return html.replaceAll(PLACEHOLDER, (_, name: string, size?: string) => iconSvg(name, Number(size) || undefined));
 }

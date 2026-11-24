@@ -12,10 +12,6 @@ export function respond(res: ServerResponse, status: number, body: Buffer | stri
     res.end(body);
 }
 
-/**
- * Static files are cached by the browser but checked with the server on every load (`no-cache`).
- * An unchanged file costs an empty 304; a changed file after a redeploy has a new ETag and is sent in full.
- */
 export function sendAsset(req: IncomingMessage, res: ServerResponse, asset: { body: Buffer; type: string; etag: string }): void {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('ETag', asset.etag);

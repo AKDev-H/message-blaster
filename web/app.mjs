@@ -50,7 +50,6 @@ function focusClosedCampaign(id) {
     if (id) get('campaign-rows').querySelector(`[data-campaign="${CSS.escape(id)}"]`)?.focus();
 }
 
-/** Applies the dashboard-wide part of a list response or live event: preview mode, AI and which campaign is sending. */
 function applyOverview(snapshot) {
     Object.assign(state, { dryRun: snapshot.dryRun, active: snapshot.active ?? [] });
     get('mode-indicator').hidden = !state.dryRun;

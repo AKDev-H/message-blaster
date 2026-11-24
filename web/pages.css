@@ -73,7 +73,6 @@ h1, p { margin: 0; }
 .status-art.ready { opacity: 1; transform: none; }
 .status-player { position: absolute; inset: 0; }
 
-/* The real brand mark sits on the large gear (its centre is at 200,150 of the 480×320 animation). */
 .art-logo {
     position: absolute;
     left: calc(200 / 480 * 100%);

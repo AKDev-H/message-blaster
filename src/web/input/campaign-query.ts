@@ -2,7 +2,6 @@ import { CAMPAIGN_STATUS_FILTERS, type CampaignQuery, type CampaignStatusFilter 
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel } from '../../types/index.js';
 import { HttpError } from '../http-error.js';
 
-/** Reads `?status=&channel=&page=` and rejects anything outside the known values before it reaches SQL. */
 export function readCampaignQuery(query: URLSearchParams, pageSize: number): CampaignQuery {
     const status = query.get('status') || undefined;
     const channel = query.get('channel') || undefined;

@@ -16,7 +16,6 @@ function row(rowNumber: number): PreparedRow {
     };
 }
 
-/** Puts the campaign's first rows into the given statuses directly, as a finished run would leave them. */
 function seed(store: Store, db: ReturnType<typeof openDatabase>, id: string, channel: CampaignChannel, statuses: MessageStatus[] = []) {
     store.importCampaign(id, [1, 2, 3].map(row), false, channel);
     const move = db.prepare(`UPDATE messages SET status = ? WHERE id = (

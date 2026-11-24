@@ -1,5 +1,3 @@
-// Builds the Lottie animations used by the 404, 500 and maintenance pages.
-// Run with `node scripts/build-animations.mjs`; it writes web/animations/*.json.
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const W = 480;
@@ -15,7 +13,6 @@ const C = {
 const still = k => ({ a: 0, k });
 const ease = { i: { x: 0.35, y: 1 }, o: { x: 0.55, y: 0 } };
 const linear = { i: { x: 1, y: 1 }, o: { x: 0, y: 0 } };
-/** Keyframes from [frame, value, easing?] triples; the last one holds. */
 const anim = (...frames) => ({
     a: 1,
     k: frames.map(([t, s, curve = ease], index) => (index === frames.length - 1
@@ -54,7 +51,6 @@ function composition(name, op, layers) {
     return { v: '5.7.4', fr: FPS, ip: 0, op, w: W, h: H, nm: name, ddd: 0, assets: [], layers: layers.reverse() };
 }
 
-/** Cubic bezier helpers so the paper plane can ride exactly on the drawn route. */
 function segmentLength(a, b) {
     let length = 0;
     let previous = a.v;
@@ -70,7 +66,6 @@ function segmentLength(a, b) {
     return length;
 }
 
-// 404: a paper plane flies a dashed delivery route that loops back on itself and ends at an empty pin.
 function lostMessage() {
     const op = 300;
     const route = [
@@ -141,7 +136,6 @@ function lostMessage() {
     return composition('Message lost on the way', op, [ghostRoute, trail, origin, pin, plane]);
 }
 
-// 500: a chat bubble is typing, the signal sparks, the bubble cracks and the dots drop away.
 function brokenSignal() {
     const op = 240;
     const bubble = layer('bubble', [
@@ -207,8 +201,6 @@ function gearPath(teeth, outer, inner) {
     return path(vertices, true);
 }
 
-// Maintenance: two gears turn while a progress line sweeps underneath. The page lays the real
-// brand mark (web/brand.css + Lucide megaphone) over the large gear's hub.
 function maintenance() {
     const op = 240;
     const big = layer('large gear', [group([gearPath(12, 58, 48), fill(C.harborWash), stroke(C.harbor, 2.6)])],

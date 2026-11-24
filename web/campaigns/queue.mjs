@@ -6,13 +6,8 @@ import { badge, formatDate, progressBar, progressText, statusOf } from './status
 
 const TOTAL_METRICS = ['queued', 'processing', 'completed', 'failed'];
 const SKELETON_ROWS = 5;
-/** Keeps the skeleton up long enough to read as a transition instead of a flicker. */
 const MIN_SKELETON_MS = 260;
 
-/**
- * The campaign list. Filtering, counting and paging run on the server; this asks for one page at a time
- * and refreshes it whenever the live stream reports a change.
- */
 export class CampaignQueue {
     #rows = get('campaign-rows');
     #statusTabs = [...get('status-tabs').querySelectorAll('[data-status]')];
@@ -38,7 +33,6 @@ export class CampaignQueue {
         return (this.#result?.allCampaigns ?? 0) > 0;
     }
 
-    /** Loads the current filters and page, replacing the rows with a skeleton until the answer arrives. */
     load() {
         this.#loading?.controller.abort();
         this.#refreshQueued = false;
@@ -46,7 +40,6 @@ export class CampaignQueue {
         return this.#fetch(true);
     }
 
-    /** Quietly re-reads the current page after a live update; overlapping refreshes collapse into one. */
     refresh() {
         if (this.#loading) {
             this.#refreshQueued = true;
@@ -220,7 +213,6 @@ export class CampaignQueue {
     }
 }
 
-/** Page numbers to show: always the first and last, and the pages next to the current one. */
 function pageWindow(current, total) {
     const pages = [...new Set([1, current - 1, current, current + 1, total])].filter(page => page >= 1 && page <= total).sort((a, b) => a - b);
     return pages.flatMap((page, index) => (index > 0 && page - pages[index - 1] > 1 ? ['gap', page] : [page]));

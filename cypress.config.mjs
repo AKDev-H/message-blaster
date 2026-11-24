@@ -40,7 +40,6 @@ function simulateDelivery({ id, state, statuses }) {
     return null;
 }
 
-/** Inserts `count` ready campaigns, every third one on WhatsApp, each with one queued recipient. */
 function seedCampaigns({ count }) {
     const db = new DatabaseSync(databasePath);
     try {

@@ -43,7 +43,6 @@ export class CampaignDetails {
         this.#panel.hidden = true;
     }
 
-    /** Takes the dashboard-wide state; the campaign itself is re-read from the server on each live update. */
     update(overview) {
         this.#overview = overview;
         if (this.#detail) this.#renderHeader();

@@ -39,12 +39,10 @@ function waitForReturn() {
             const response = await fetch('/api/campaigns', { cache: 'no-store' });
             if (response.ok) window.location.replace('/');
         } catch {
-            // Still offline; the next check tries again.
         }
     }, POLL_MS);
 }
 
-/** Reloads the page that failed; on the /errors/500 preview there is nothing to retry, so it opens the dashboard. */
 function retry(event) {
     event.currentTarget.disabled = true;
     if (window.location.pathname.startsWith('/errors/')) window.location.assign('/');

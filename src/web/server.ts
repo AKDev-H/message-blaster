@@ -22,7 +22,6 @@ import { settingsRoutes } from './routes/settings.js';
 
 const ROUTES = [...campaignRoutes, ...fileRoutes, ...settingsRoutes];
 const MAINTENANCE_RETRY_SECONDS = 120;
-/** Previews of each status page, so they can be checked without breaking anything. */
 const PAGE_PREVIEWS: Record<string, [StatusPage, number]> = {
     '/errors/404': ['not-found', 404],
     '/errors/500': ['server-error', 500],
@@ -87,7 +86,6 @@ function createApp(env: BaseEnvironment, db: DatabaseSync, observer: DatabaseSyn
     return app;
 }
 
-/** What every open dashboard needs on each change; each page then queries its own filtered list. */
 function campaignSnapshot({ env, store, runner, updates }: App) {
     const active = new Set(store.listActiveCampaignIds());
     if (runner.activeId) active.add(runner.activeId);
@@ -122,7 +120,6 @@ async function route(req: IncomingMessage, res: ServerResponse, app: App, site: 
     await match.route.handle({ req, res, params: match.params, query: searchParams }, app);
 }
 
-/** While MAINTENANCE_MODE is on, pages show the maintenance screen and the API refuses work; styles and scripts still load. */
 function underMaintenance(req: IncomingMessage, res: ServerResponse, site: Site, pathname: string): void {
     const asset = site.assets.get(pathname);
     if (req.method === 'GET' && asset && pathname !== '/') return sendAsset(req, res, asset);
