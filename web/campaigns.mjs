@@ -37,8 +37,9 @@ function progress(campaign) {
 
 export function createQueue(onOpen) {
     const rows = get('campaign-rows');
-    const channelFilter = get('channel-filter');
-    const stateFilter = get('state-filter');
+    const statusTabs = [...get('status-tabs').querySelectorAll('[data-status]')];
+    const channelToggles = [...get('channel-toggles').querySelectorAll('[data-channel]')];
+    const filters = { status: '', channel: '' };
     let signature = '';
     let latest = { campaigns: null, selected: '' };
 
@@ -73,16 +74,41 @@ export function createQueue(onOpen) {
         return row;
     }
 
+    function setMetric(key, value) {
+        const target = get(`metric-${key}`);
+        const text = number.format(value);
+        if (target.textContent === text) return;
+        target.textContent = text;
+        target.classList.remove('changed');
+        void target.offsetWidth;
+        target.classList.add('changed');
+    }
+
+    function renderFilters(campaigns) {
+        const inChannel = campaigns.filter(campaign => !filters.channel || campaign.channel === filters.channel);
+        const total = key => inChannel.reduce((sum, campaign) => sum + (campaign[key] ?? 0), 0);
+        for (const key of ['queued', 'processing', 'completed', 'failed']) setMetric(key, total(key));
+        const review = total('unknown');
+        const caption = get('metric-failed-caption');
+        caption.textContent = review ? `${number.format(review)} to review` : '';
+        caption.hidden = !review;
+        for (const tab of statusTabs) tab.setAttribute('aria-pressed', String(tab.dataset.status === filters.status));
+        for (const toggle of channelToggles) toggle.setAttribute('aria-pressed', String(toggle.dataset.channel === filters.channel));
+        return inChannel;
+    }
+
+    const matchesStatus = campaign => !filters.status || campaign[filters.status] > 0 || (filters.status === 'failed' && campaign.unknown > 0);
+
     function render(campaigns = latest.campaigns, selected = latest.selected) {
         latest = { campaigns, selected };
         if (!campaigns) return;
-        const channel = channelFilter.value;
-        const status = stateFilter.value;
-        const visible = campaigns.filter(campaign =>
-            (!channel || channel === campaign.channel) && (!status || status === campaign.state));
+        const visible = renderFilters(campaigns).filter(matchesStatus);
         const filtered = campaigns.length > 0;
+        const noun = campaigns.length === 1 ? 'campaign' : 'campaigns';
 
-        get('campaign-count').textContent = `${number.format(visible.length)} of ${number.format(campaigns.length)}`;
+        get('campaign-count').textContent = visible.length === campaigns.length
+            ? `${number.format(campaigns.length)} ${noun}`
+            : `${number.format(visible.length)} of ${number.format(campaigns.length)} ${noun}`;
         get('campaign-table').hidden = visible.length === 0;
         get('campaign-empty').hidden = visible.length !== 0;
         get('empty-heading').textContent = filtered ? 'No matching campaigns' : 'No campaigns yet';
@@ -98,13 +124,23 @@ export function createQueue(onOpen) {
     }
 
     function clearFilters() {
-        channelFilter.value = '';
-        stateFilter.value = '';
+        filters.status = '';
+        filters.channel = '';
         render();
     }
 
-    channelFilter.addEventListener('change', () => render());
-    stateFilter.addEventListener('change', () => render());
+    for (const tab of statusTabs) {
+        tab.addEventListener('click', () => {
+            filters.status = tab.dataset.status;
+            render();
+        });
+    }
+    for (const toggle of channelToggles) {
+        toggle.addEventListener('click', () => {
+            filters.channel = filters.channel === toggle.dataset.channel ? '' : toggle.dataset.channel;
+            render();
+        });
+    }
     return { render, clearFilters };
 }
 

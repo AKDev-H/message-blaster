@@ -39,48 +39,43 @@
     <main id="main" tabindex="-1">
         <section class="overview" aria-labelledby="page-title">
             <h1 id="page-title">Campaigns</h1>
-            <dl class="metrics" aria-label="Recipients across all campaigns">
-                <div class="metric queued"><dt>Queued</dt><dd id="metric-queued">—</dd></div>
-                <div class="metric processing"><dt>Processing</dt><dd id="metric-processing">—</dd></div>
-                <div class="metric completed"><dt>Completed</dt><dd id="metric-completed">—</dd></div>
-                <div class="metric failed">
-                    <dt>Failed</dt><dd id="metric-failed">—</dd>
-                    <dd class="metric-caption" id="metric-failed-caption" hidden></dd>
-                </div>
-            </dl>
+            <p class="overview-count" id="campaign-count" aria-live="polite">Loading…</p>
         </section>
 
         <section class="panel" id="queue" aria-labelledby="queue-heading">
-            <header class="panel-head">
-                <div class="queue-title">
-                    <h2 id="queue-heading">Queue</h2>
-                    <p id="campaign-count">Loading…</p>
+            <h2 class="visually-hidden" id="queue-heading">Queue</h2>
+            <header class="queue-toolbar">
+                <div class="status-tabs" id="status-tabs" role="group" aria-label="Filter campaigns by recipient status">
+                    <button type="button" class="status-tab" data-status="" aria-pressed="true">
+                        <span class="status-label">All</span>
+                    </button>
+                    <button type="button" class="status-tab queued" data-status="queued" aria-pressed="false" title="Campaigns with recipients waiting to be sent">
+                        <span class="status-dot" aria-hidden="true"></span><span class="status-label">Queued</span><span class="status-count" id="metric-queued">—</span>
+                    </button>
+                    <button type="button" class="status-tab processing" data-status="processing" aria-pressed="false" title="Campaigns sending right now">
+                        <span class="status-dot" aria-hidden="true"></span><span class="status-label">Sending</span><span class="status-count" id="metric-processing">—</span>
+                    </button>
+                    <button type="button" class="status-tab completed" data-status="completed" aria-pressed="false" title="Campaigns with delivered recipients">
+                        <span class="status-dot" aria-hidden="true"></span><span class="status-label">Completed</span><span class="status-count" id="metric-completed">—</span>
+                    </button>
+                    <button type="button" class="status-tab failed" data-status="failed" aria-pressed="false" title="Campaigns with failed recipients or outcomes to review">
+                        <span class="status-dot" aria-hidden="true"></span><span class="status-label">Failed</span><span class="status-count" id="metric-failed">—</span>
+                        <span class="status-note" id="metric-failed-caption" hidden></span>
+                    </button>
                 </div>
-                <div class="filters">
+                <div class="toolbar-end">
+                    <div class="channel-toggles" id="channel-toggles" role="group" aria-label="Filter campaigns by channel">
+                        <button type="button" class="channel-toggle" data-channel="gmail" aria-pressed="false"><i data-brand="gmail" data-size="14"></i><span>Gmail</span></button>
+                        <button type="button" class="channel-toggle" data-channel="whatsapp" aria-pressed="false"><i data-brand="whatsapp" data-size="14"></i><span>WhatsApp</span></button>
+                    </div>
                     <details class="menu" id="template-menu">
-                        <summary class="button secondary small"><i data-icon="file-spreadsheet"></i><span>Excel template</span><i data-icon="chevron-down" data-size="14"></i></summary>
+                        <summary class="button secondary small" aria-label="Download an Excel template"><i data-icon="file-spreadsheet"></i><span class="menu-label">Template</span><i data-icon="chevron-down" data-size="14"></i></summary>
                         <div class="menu-list" role="menu" aria-label="Download an empty Excel template">
                             <a role="menuitem" href="/api/template?channel=gmail" download><i data-brand="gmail" data-size="14"></i><span>Gmail</span></a>
                             <a role="menuitem" href="/api/template?channel=whatsapp" download><i data-brand="whatsapp" data-size="14"></i><span>WhatsApp</span></a>
                             <a role="menuitem" href="/api/template?channel=both" download><span class="menu-pair"><i data-brand="gmail" data-size="12"></i><i data-brand="whatsapp" data-size="12"></i></span><span>Gmail + WhatsApp</span></a>
                         </div>
                     </details>
-                    <label>
-                        <span class="visually-hidden">Filter by channel</span>
-                        <select id="channel-filter">
-                            <option value="">All channels</option>
-                            <option value="gmail">Gmail</option>
-                            <option value="whatsapp">WhatsApp</option>
-                        </select>
-                    </label>
-                    <label>
-                        <span class="visually-hidden">Filter by status</span>
-                        <select id="state-filter">
-                            <option value="">All statuses</option>
-                            <option>Draft</option><option>Ready</option><option>Running</option><option>Paused</option>
-                            <option>Completed</option><option>Failed</option><option>Cancelled</option>
-                        </select>
-                    </label>
                 </div>
             </header>
             <div class="table-wrap" id="campaign-table" hidden>

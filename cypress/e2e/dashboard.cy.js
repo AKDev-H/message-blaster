@@ -30,7 +30,7 @@ describe('Dashboard', () => {
             });
         }
         cy.get('#template-menu').should('have.attr', 'open');
-        cy.get('#queue-heading').click();
+        cy.get('#page-title').click();
         cy.get('#template-menu').should('not.have.attr', 'open');
     });
 
@@ -75,10 +75,36 @@ describe('Dashboard', () => {
             channel: 'gmail',
             rows: [{ 'Client Name': 'Ari', 'Email Address': 'ari@example.com', Subject: 'Hi', 'Consent Status': 'Opted In' }],
         });
-        cy.get('#channel-filter').select('WhatsApp');
+        cy.importCampaign({
+            name: 'only-chat',
+            channels: ['whatsapp'],
+            channel: 'whatsapp',
+            rows: [
+                { 'Client Name': 'Ben', 'Phone Number': '+60123456789', 'Consent Status': 'Opted In' },
+                { 'Client Name': 'Cy', 'Phone Number': '+60123456788', 'Consent Status': 'Opted In' },
+            ],
+        });
+        cy.get('#campaign-count').should('have.text', '2 campaigns');
+        cy.get('#metric-queued').should('have.text', '3');
+
+        cy.contains('.channel-toggle', 'WhatsApp').click().should('have.attr', 'aria-pressed', 'true');
+        cy.get('#campaign-rows tr').should('have.length', 1).and('contain', 'only-chat');
+        cy.get('#metric-queued').should('have.text', '2');
+        cy.get('#campaign-count').should('have.text', '1 of 2 campaigns');
+        cy.contains('.channel-toggle', 'Gmail').click();
+        cy.contains('.channel-toggle', 'WhatsApp').should('have.attr', 'aria-pressed', 'false');
+        cy.get('#campaign-rows tr').should('have.length', 1).and('contain', 'only-mail');
+        cy.contains('.channel-toggle', 'Gmail').click().should('have.attr', 'aria-pressed', 'false');
+        cy.get('#campaign-rows tr').should('have.length', 2);
+
+        cy.contains('.status-tab', 'Failed').click().should('have.attr', 'aria-pressed', 'true');
+        cy.get('.status-tab[data-status=""]').should('have.attr', 'aria-pressed', 'false');
         cy.get('#campaign-empty').should('contain', 'No matching campaigns');
         cy.get('#empty-action').click();
-        cy.get('#campaign-rows tr').should('have.length', 1);
+        cy.get('.status-tab[data-status=""]').should('have.attr', 'aria-pressed', 'true');
+        cy.get('#campaign-rows tr').should('have.length', 2);
+        cy.contains('.status-tab', 'Queued').click();
+        cy.get('#campaign-rows tr').should('have.length', 2);
     });
 
     it('deletes a campaign after confirmation', () => {

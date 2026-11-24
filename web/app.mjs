@@ -1,10 +1,10 @@
-import { countKeys, createDetails, createQueue } from './campaigns.mjs';
+import { createDetails, createQueue } from './campaigns.mjs';
 import { createComposer } from './compose.mjs';
 import { createConfirm } from './confirm.mjs';
 import { hydrateBrands } from './brands.mjs';
 import { hydrateIcons } from './icons.mjs';
 import { createSettings } from './settings.mjs';
-import { get, number, request, setError } from './ui.mjs';
+import { get, request, setError } from './ui.mjs';
 import { createViewer } from './viewer.mjs';
 
 hydrateIcons();
@@ -46,16 +46,6 @@ function setConnection(mode, message) {
     target.lastElementChild.textContent = message;
 }
 
-function setMetric(key, value) {
-    const target = get(`metric-${key}`);
-    const text = number.format(value);
-    if (target.textContent === text) return;
-    target.textContent = text;
-    target.classList.remove('changed');
-    void target.offsetWidth;
-    target.classList.add('changed');
-}
-
 function applySnapshot(snapshot) {
     const previous = new Map((state.campaigns ?? []).map(campaign => [campaign.id, JSON.stringify(campaign)]));
     const revisionChanged = state.revision !== (snapshot.revision ?? null);
@@ -63,13 +53,6 @@ function applySnapshot(snapshot) {
 
     get('mode-indicator').hidden = !state.dryRun;
     composer.setAiAvailable(Boolean(snapshot.ai));
-    const totals = Object.fromEntries(countKeys.map(key =>
-        [key, state.campaigns.reduce((sum, campaign) => sum + (campaign[key] ?? 0), 0)]));
-    for (const key of ['queued', 'processing', 'completed', 'failed']) setMetric(key, totals[key]);
-    const caption = get('metric-failed-caption');
-    caption.textContent = totals.unknown ? `${number.format(totals.unknown)} need review` : '';
-    caption.hidden = !totals.unknown;
-
     queue.render(state.campaigns, details.selected);
     details.update(state, campaign => revisionChanged || previous.get(campaign.id) !== JSON.stringify(campaign));
 }
