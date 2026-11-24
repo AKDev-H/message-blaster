@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Audit log · Message Blaster</title>
+    <link rel="stylesheet" href="/auth.css">
+    <script defer src="/vendor/lucide.js"></script>
+    <script type="module" src="/audit.mjs"></script>
+</head>
+<body class="audit-page">
+    <main>
+        <a href="/">Back to dashboard</a>
+        <h1>Audit log</h1>
+        <p id="audit-status" role="status"></p>
+        <div class="audit-table">
+            <table>
+                <thead><tr><th>Time</th><th>Actor ID</th><th>Source</th><th>Action</th><th>Target</th><th>Outcome</th><th>Request ID</th></tr></thead>
+                <tbody id="audit-rows"></tbody>
+            </table>
+        </div>
+        <button id="audit-more" type="button" hidden>Load older events</button>
+    </main>
+</body>
+</html>

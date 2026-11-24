@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { inlineIcons } from '../src/web/inline-icons.js';
 import { startWebServer } from '../src/web/server.js';
+import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 test('icon placeholders are rendered to SVG on the server', () => {
     const html = inlineIcons('<b><i data-icon="plus"></i><i data-icon="chevron-down" data-size="14"></i></b>');
@@ -18,31 +19,34 @@ test('icon placeholders are rendered to SVG on the server', () => {
 test('dashboard ships icons inline and revalidates static files with ETags', async context => {
     const directory = await mkdtemp(join(tmpdir(), 'message-blaster-assets-'));
     const env = { ...loadEnv(), ...DEFAULT_SETTINGS, DATABASE_URL: join(directory, 'app.db'), LOG_DIR: join(directory, 'logs'), MAINTENANCE_MODE: false };
-    const dashboard = await startWebServer(env, 0);
+    approveTestUser(env.DATABASE_URL);
+    const dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     context.after(async () => {
         await dashboard.close();
         await rm(directory, { recursive: true, force: true });
     });
 
-    const page = await fetch(`${dashboard.url}/`);
+    const request = authenticatedFetch(dashboard.url, await testLogin(dashboard.url));
+    const page = await request('/');
+    assert.equal(page.headers.get('cache-control'), 'no-store');
     const html = await page.text();
     assert.doesNotMatch(html, /<i data-icon=/u);
     assert.match(html, /<svg class="icon icon-megaphone"/u);
 
-    for (const path of ['/', '/vendor/lucide.js', '/app.mjs', '/fonts/instrument.woff2']) {
-        const first = await fetch(`${dashboard.url}${path}`);
+    for (const path of ['/vendor/lucide.js', '/app.mjs', '/fonts/instrument.woff2']) {
+        const first = await request(path);
         await first.arrayBuffer();
         const etag = first.headers.get('etag');
         assert.equal(first.headers.get('cache-control'), 'no-cache', path);
         assert.ok(etag, path);
-        const repeat = await fetch(`${dashboard.url}${path}`, { headers: { 'If-None-Match': etag } });
+        const repeat = await request(path, { headers: { 'If-None-Match': etag } });
         assert.equal(repeat.status, 304, path);
-        const stale = await fetch(`${dashboard.url}${path}`, { headers: { 'If-None-Match': '"from-an-older-deploy"' } });
+        const stale = await request(path, { headers: { 'If-None-Match': '"from-an-older-deploy"' } });
         assert.equal(stale.status, 200, path);
         await stale.arrayBuffer();
     }
 
-    const api = await fetch(`${dashboard.url}/api/campaigns`);
+    const api = await request('/api/campaigns');
     await api.arrayBuffer();
     assert.equal(api.headers.get('cache-control'), 'no-store');
 });

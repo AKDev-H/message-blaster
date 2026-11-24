@@ -21,6 +21,10 @@ const STATUS_PAGE_FILES: Record<StatusPage, string> = {
 
 const ASSET_FILES: readonly (readonly [string, string, string])[] = [
     ['/', '../../web/index.html', 'text/html; charset=utf-8'],
+    ['/audit', '../../web/audit.html', 'text/html; charset=utf-8'],
+    ['/auth.css', '../../web/auth.css', 'text/css; charset=utf-8'],
+    ['/login-bg.jpg', '../../web/login-bg.jpg', 'image/jpeg'],
+    ['/logo.png', '../../web/logo.png', 'image/png'],
     ['/style.css', '../../web/style.css', 'text/css; charset=utf-8'],
     ['/brand.css', '../../web/brand.css', 'text/css; charset=utf-8'],
     ['/pages.css', '../../web/pages.css', 'text/css; charset=utf-8'],

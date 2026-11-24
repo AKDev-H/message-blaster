@@ -61,14 +61,13 @@ export function setSecurityHeaders(res: ServerResponse): void {
     res.setHeader('Referrer-Policy', 'no-referrer');
 }
 
-export function validateOrigin(req: IncomingMessage, port: number, isApiCall: boolean): void {
-    const { host } = req.headers;
-    if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) throw new HttpError(403, 'Open the dashboard at its local address.');
-    if (isApiCall && !isSameOrigin(req, host)) throw new HttpError(403, 'This request must come from the dashboard.');
-}
-
-function isSameOrigin(req: IncomingMessage, host: string): boolean {
+export function validateOrigin(req: IncomingMessage, publicOrigin: URL, isApiCall: boolean): void {
+    if (req.headers.host !== publicOrigin.host) throw new HttpError(403, 'Open the dashboard at its configured address.');
     const { origin } = req.headers;
+    const reads = req.method === 'GET' || req.method === 'HEAD';
     const crossSite = ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']));
-    return (origin === undefined || origin === `http://${host}`) && !crossSite;
+    if ((!reads && (origin !== publicOrigin.origin || crossSite))
+        || (reads && isApiCall && ((origin !== undefined && origin !== publicOrigin.origin) || crossSite))) {
+        throw new HttpError(403, 'This request must come from the dashboard.');
+    }
 }

@@ -16,7 +16,7 @@ export const CAMPAIGN_PATH = /^\/api\/campaigns\/([A-Za-z0-9_-]+)(?:\/([a-z]+))?
 const campaign = (action?: string) => new RegExp(`^/api/campaigns/([A-Za-z0-9_-]+)${action ? `/${action}` : ''}$`, 'u');
 
 export const campaignRoutes: Route[] = [
-    { method: 'GET', path: '/api/events', handle: ({ res }, app) => app.updates.subscribe(res) },
+    { method: 'GET', path: '/api/events', handle: ({ res, sessionActive }, app) => app.updates.subscribe(res, sessionActive) },
     { method: 'GET', path: '/api/campaigns', handle: listCampaigns },
     { method: 'POST', path: '/api/campaigns', handle: createCampaigns },
     { method: 'GET', path: campaign(), handle: showCampaign },
@@ -37,12 +37,13 @@ function listCampaigns({ res, query }: Request, app: App): void {
     json(res, 200, { ...(app.snapshot() as object), ...result, campaigns });
 }
 
-async function createCampaigns({ req, res }: Request, app: App): Promise<void> {
+async function createCampaigns({ req, res, audit }: Request, app: App): Promise<void> {
     const form = await readForm(req);
     const name = readCampaignId(String(form.get('id') ?? ''));
     const targets = campaignTargets(name, readChannels(form));
     const draft = await readDraft(form);
-    app.store.importCampaigns(await prepareTargets(app, targets, draft, targets.length > 1 ? name : undefined));
+    const campaigns = await prepareTargets(app, targets, draft, targets.length > 1 ? name : undefined);
+    audit.mutation('campaign.create', () => app.store.importCampaigns(campaigns), name);
     app.updates.changed();
     json(res, 201, { id: targets[0]!.id, ids: targets.map(({ id }) => id) });
 }
@@ -63,59 +64,63 @@ function showCampaign({ res, params, query }: Request, app: App): void {
     json(res, 200, { campaign: summary, ...app.store.listMessagePage(id, pageNumber(query), PAGE_SIZE), draft });
 }
 
-async function exportResults({ res, params }: Request, app: App): Promise<void> {
+async function exportResults({ res, params, audit }: Request, app: App): Promise<void> {
     const id = readCampaignId(params[0]!);
-    sendWorkbook(res, await exportCampaignWorkbook(app.store, id), `${id}-results.xlsx`);
+    const workbook = await exportCampaignWorkbook(app.store, id);
+    audit.record('campaign.export', 'success', id);
+    sendWorkbook(res, workbook, `${id}-results.xlsx`);
 }
 
-async function editDraft({ req, res, params }: Request, app: App): Promise<void> {
+async function editDraft({ req, res, params, audit }: Request, app: App): Promise<void> {
     const id = readCampaignId(params[0]!);
     ensureNotSending(app, id);
     const { channel, workbook } = editableDraft(app, id);
     const draft = await readDraft(await readForm(req), workbook);
     const rows = await previewDraft(app.store, app.settings(), id, channel, draft);
     ensureNotSending(app, id);
-    app.store.replaceWebDraft(id, rows, draft);
+    audit.mutation('campaign.edit', () => app.store.replaceWebDraft(id, rows, draft), id);
     done(app, res, id);
 }
 
-function deleteCampaign({ res, params }: Request, app: App): void {
+function deleteCampaign({ res, params, audit }: Request, app: App): void {
     const id = readCampaignId(params[0]!);
     ensureNotSending(app, id);
-    app.store.deleteCampaign(id);
+    audit.mutation('campaign.delete', () => app.store.deleteCampaign(id), id);
     app.updates.changed();
     noContent(res);
 }
 
 async function launch(request: Request, app: App, mode: RunMode): Promise<void> {
     const { id, body } = await actionInput(request);
-    app.runner.launch(id, mode, body.approve);
+    app.runner.launch(id, mode, body.approve, request.audit, `campaign.${mode}`);
     json(request.res, 202, { id });
 }
 
 async function pause(request: Request, app: App): Promise<void> {
     const { id } = await actionInput(request);
-    app.runner.pause(id);
+    app.runner.pause(id, request.audit);
     done(app, request.res, id);
 }
 
 async function cancel(request: Request, app: App): Promise<void> {
     const { id } = await actionInput(request);
-    app.runner.cancel(id);
+    app.runner.cancel(id, request.audit);
     done(app, request.res, id);
 }
 
 async function retryFailed(request: Request, app: App): Promise<void> {
     const { id } = await actionInput(request);
     ensureNotSending(app, id);
-    if (!app.store.retryFailed(id)) throw new HttpError(409, 'There are no eligible failed recipients to retry.');
+    request.audit.mutation('campaign.retry', () => {
+        if (!app.store.retryFailed(id)) throw new HttpError(409, 'There are no eligible failed recipients to retry.');
+    }, id);
     done(app, request.res, id);
 }
 
 async function review(request: Request, app: App): Promise<void> {
     const { id, body } = await actionInput(request);
     const { recordId, outcome, note } = readReview(body);
-    app.store.review(recordId, outcome, note, id);
+    request.audit.mutation('campaign.review', () => app.store.review(recordId, outcome, note, id), id);
     done(app, request.res, id);
 }
 

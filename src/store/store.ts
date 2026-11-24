@@ -5,6 +5,7 @@ import * as campaigns from './campaigns.js';
 import * as consent from './consent.js';
 import * as delivery from './delivery.js';
 import * as drafts from './drafts.js';
+import * as groups from './groups.js';
 import * as lifecycle from './lifecycle.js';
 import * as receipts from './receipts.js';
 import * as recipients from './recipients.js';
@@ -18,6 +19,20 @@ export interface NewCampaign {
     channel: CampaignChannel;
     isTest?: boolean;
     draft?: WebDraft | undefined;
+    groupId?: number;
+}
+
+export interface NewCampaignGroup {
+    slug: string;
+    name: string;
+    shared: groups.SharedContent;
+    campaigns: NewCampaign[];
+}
+
+export interface DraftReplacement {
+    id: string;
+    rows: PreparedRow[];
+    draft: WebDraft;
 }
 
 export class Store {
@@ -32,6 +47,73 @@ export class Store {
         return transaction(this.db, () => list.map(campaign => this.insertCampaign(campaign)));
     }
 
+
+    createCampaignGroup({ slug, name, shared, campaigns: members }: NewCampaignGroup): Campaign[] {
+        return transaction(this.db, () => {
+            const groupId = groups.createGroup(this.db, slug, name, 'row', shared);
+            return members.map(member => this.insertCampaign({ ...member, groupId }));
+        });
+    }
+
+    campaignGroup(slug: string): groups.CampaignGroup {
+        return groups.findGroup(this.db, slug);
+    }
+
+    groupOfCampaign(id: string): groups.CampaignGroup | undefined {
+        return groups.groupOfCampaign(this.db, id);
+    }
+
+    groupMembers(group: groups.CampaignGroup): CampaignSummary[] {
+        return groups.groupMembers(this.db, group.id);
+    }
+
+    groupMember(group: groups.CampaignGroup, channel: CampaignChannel): CampaignSummary {
+        return groups.memberFor(this.db, group, channel);
+    }
+
+    groupMetrics(group: groups.CampaignGroup, members: readonly CampaignSummary[]): groups.GroupMetrics {
+        return groups.groupMetrics(this.db, group, members);
+    }
+
+    memberMetrics(id: string): groups.DeliveryMetrics {
+        return groups.memberMetrics(this.db, id);
+    }
+
+    listGroupPage(query: groups.GroupQuery): groups.GroupPage {
+        return groups.listGroupPage(this.db, query);
+    }
+
+    renameGroup(slug: string, name: string): groups.CampaignGroup {
+        return groups.renameGroup(this.db, slug, name);
+    }
+
+    replaceGroupDraft(group: groups.CampaignGroup, replacements: readonly DraftReplacement[], shared: groups.SharedContent): Campaign[] {
+        return transaction(this.db, () => {
+            const updated = replacements.map(({ id, rows, draft }) => drafts.replaceWebDraft(this.db, id, rows, draft));
+            groups.saveSharedContent(this.db, group.id, shared);
+            return updated;
+        });
+    }
+
+    setPendingChannels(group: groups.CampaignGroup, channels: readonly CampaignChannel[]): void {
+        groups.setPendingChannels(this.db, group.id, channels);
+    }
+
+    deleteGroup(slug: string): void {
+        transaction(this.db, () => {
+            const group = groups.findGroup(this.db, slug);
+            for (const member of groups.groupMembers(this.db, group.id)) lifecycle.deleteCampaign(this.db, member.id);
+            groups.deleteEmptyGroup(this.db, group.id);
+        });
+    }
+
+    pairCandidates(): groups.PairCandidate[] {
+        return groups.pairCandidates(this.db);
+    }
+
+    groupPair(gmailId: string, whatsappId: string, slug: string, force = false): groups.CampaignGroup {
+        return groups.mergePair(this.db, gmailId, whatsappId, slug, force);
+    }
 
     getCampaign(id: string): Campaign {
         return campaigns.getCampaign(this.db, id);
@@ -188,8 +270,9 @@ export class Store {
         return reviews.campaignAttempts(this.db, id);
     }
 
-    private insertCampaign({ id, rows, channel, isTest = false, draft }: NewCampaign): Campaign {
-        campaigns.insertCampaign(this.db, id, isTest, channel);
+    private insertCampaign({ id, rows, channel, isTest = false, draft, groupId }: NewCampaign): Campaign {
+        const group = groupId ?? (isTest ? null : groups.createGroup(this.db, id, id, 'row'));
+        campaigns.insertCampaign(this.db, id, isTest, channel, group);
         if (draft) drafts.saveWebDraft(this.db, id, draft);
         const hasEligible = recipients.insertRecipients(this.db, id, channel, isTest, rows);
         return hasEligible ? campaigns.setState(this.db, id, 'Ready') : this.getCampaign(id);

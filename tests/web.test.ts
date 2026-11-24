@@ -6,11 +6,13 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
 import ExcelJS from 'exceljs';
+import type { AuditEvent } from '../src/auth/store.js';
 import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { Store } from '../src/store/index.js';
 import { saveSettings } from '../src/services/settings.service.js';
 import { startWebServer } from '../src/web/server.js';
+import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 interface CampaignProgress {
     id: string;
@@ -24,10 +26,10 @@ interface CampaignProgress {
     skipped: number;
 }
 
-async function watchProgress(url: string, cleanup: (callback: () => void) => void) {
+async function watchProgress(request: ReturnType<typeof authenticatedFetch>, cleanup: (callback: () => void) => void) {
     const abort = new AbortController();
     cleanup(() => abort.abort());
-    const stream = await fetch(`${url}/api/events`, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(25_000)]) });
+    const stream = await request('/api/events', { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(25_000)]) });
     assert.equal(stream.status, 200);
     const reader = stream.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
@@ -38,7 +40,7 @@ async function watchProgress(url: string, cleanup: (callback: () => void) => voi
                 const data = buffer.slice(0, boundary).split('\n').find(line => line.startsWith('data: '));
                 buffer = buffer.slice(boundary + 2);
                 if (data) {
-                    const response = await fetch(`${url}/api/campaigns/outreach`);
+                    const response = await request('/api/campaigns/outreach');
                     const campaign = response.ok ? ((await response.json()) as { campaign: CampaignProgress }).campaign : undefined;
                     if (campaign && match(campaign)) return campaign;
                 }
@@ -124,9 +126,10 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
         else process.env.NODE_OPTIONS = originalNodeOptions;
         await rm(directory, { recursive: true, force: true });
     });
-    dashboard = await startWebServer(env, 0);
+    approveTestUser(env.DATABASE_URL);
+    dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     const { url } = dashboard;
-    const request = (path: string, options?: RequestInit) => fetch(`${url}${path}`, options);
+    const request = authenticatedFetch(url, await testLogin(url));
     const command = (action: string, body: Record<string, unknown> = {}, id = 'outreach') => request(`/api/campaigns/${id}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -166,7 +169,7 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     upload.set('attachment', 'sales.pdf');
     upload.set('workbook', new Blob([await workbook.xlsx.writeBuffer()]), 'clients.xlsx');
 
-    const readProgress = await watchProgress(url, callback => { stopProgress = callback; });
+    const readProgress = await watchProgress(request, callback => { stopProgress = callback; });
     assert.equal((await request('/api/campaigns', { method: 'POST', body: upload })).status, 201);
     const edit = new FormData();
     edit.set('script', 'Hi {{client_name}}, here is your updated brochure.');
@@ -315,4 +318,12 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.match((await request('/api/attachments/notes.txt?download')).headers.get('content-disposition') ?? '', /^attachment/u);
     assert.equal((await request('/api/attachments/missing.pdf')).status, 404);
     assert.equal((await request('/api/attachments/..%2Fsecret.txt')).status, 404);
+
+    const { events } = await (await request('/api/audit')).json() as { events: AuditEvent[] };
+    const start = events.find(event => event.action === 'campaign.start' && event.target === 'outreach');
+    assert.equal(start?.outcome, 'accepted');
+    assert.ok(events.some(event => event.source === 'worker' && event.action === 'campaign.worker_exit'
+        && event.target === 'outreach' && event.requestId === start?.requestId));
+    assert.ok(events.some(event => event.action === 'attachment.download' && event.target === null));
+    assert.doesNotMatch(JSON.stringify(events), /abcdefghijklmnop|ari@example\.com|notes\.txt/u);
 });

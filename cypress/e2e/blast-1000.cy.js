@@ -22,8 +22,7 @@ describe('1,000-customer WhatsApp blast', () => {
     });
 
     it('imports 1,000 rows, skips duplicates and missing consent, and pages through recipients', () => {
-        cy.get('#metric-queued').should('have.text', ELIGIBLE.toLocaleString());
-        cy.get('#campaign-rows tr').should('have.length', 1).and('contain', 'blast-1000').and('contain', `${SKIPPED} / ${CUSTOMERS.toLocaleString()}`);
+        cy.location('pathname').should('eq', '/campaigns/blast-1000');
         cy.get('#detail-summary .detail-count.queued strong').should('have.text', ELIGIBLE.toLocaleString());
         cy.get('#detail-summary .detail-count.skipped strong').should('have.text', String(SKIPPED));
 
@@ -37,17 +36,17 @@ describe('1,000-customer WhatsApp blast', () => {
 
     it('shows live progress as messages go out, then the finished totals', () => {
         cy.task('campaign:simulate', { id: 'blast-1000', state: 'Running', statuses: { DELIVERED: 300, READ: 150, SENDING: 1 } });
-        cy.get('#metric-processing').should('have.text', '1');
-        cy.get('#metric-completed').should('have.text', '450');
-        cy.get('#metric-queued').should('have.text', (ELIGIBLE - 451).toLocaleString());
-        cy.get('#campaign-rows tr').should('contain', `${(450 + SKIPPED).toLocaleString()} / ${CUSTOMERS.toLocaleString()}`);
+        cy.get('#detail-summary .detail-count.processing strong').should('have.text', '1');
+        cy.get('#detail-summary .detail-count.completed strong').should('have.text', '450');
+        cy.get('#detail-summary .detail-count.queued strong').should('have.text', (ELIGIBLE - 451).toLocaleString());
 
         cy.task('campaign:simulate', { id: 'blast-1000', state: 'Completed', statuses: { DELIVERED: ELIGIBLE - 450 - 2, UNKNOWN: 2 } });
+        cy.get('#detail-summary .detail-count.unknown strong').should('have.text', '2');
+        cy.get('#close-detail').click();
         cy.get('#metric-queued').should('have.text', '0');
         cy.get('#metric-processing').should('have.text', '0');
         cy.get('#metric-completed').should('have.text', (ELIGIBLE - 2).toLocaleString());
         cy.get('#metric-failed-caption').should('be.visible').and('have.text', '2 to review');
-        cy.get('#detail-summary .detail-count.unknown strong').should('have.text', '2');
         cy.get('#campaign-rows tr').should('contain', `${CUSTOMERS.toLocaleString()} / ${CUSTOMERS.toLocaleString()}`);
     });
 });

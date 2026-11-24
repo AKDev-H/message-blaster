@@ -26,10 +26,52 @@ Requires Node.js 24.
 npm ci
 cp .env.example .env
 npm run setup     # creates dirs, runs migrations, generates data/clients.xlsx
-npm run web       # dashboard at http://127.0.0.1:3000
 ```
 
+To open the dashboard, configure Google sign-in as described below and run `npm run web`.
+
 `DRY_RUN=true` is the default, so nothing is sent until you change it.
+
+## Dashboard access
+
+The dashboard requires an approved Google account. The app uses Sign in with Google for operator identity, and campaigns send through the Gmail or WhatsApp account configured in Settings.
+
+1. Configure your project's audience in Google Auth Platform and create an OAuth client of type **Web application**. If your project requires test users, add their accounts there too. [Google OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect)
+2. Set the client's **Authorized redirect URI** to `http://127.0.0.1:3000/auth/callback` for local use or `https://blaster.example.com/auth/callback` for an HTTPS deployment. Use the exact origin and port that operators will open in their browsers.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` or your process environment. For HTTPS, set `WEB_PUBLIC_ORIGIN=https://blaster.example.com` without a path. The default local origin is `http://127.0.0.1:<WEB_PORT>`.
+4. Approve your Google-hosted email as the first administrator. Start the dashboard and open the configured origin.
+
+```bash
+node --import tsx src/index.ts auth:bootstrap admin@example.com
+npm run web
+```
+
+Approve each existing operator's Gmail or Google Workspace email before switching users over. On first sign-in the app checks the verified, Google-hosted address and binds the account to its Google subject ID. Thereafter the subject ID identifies the user. Use the dashboard to sign out and the trusted server CLI to manage access.
+
+```bash
+node --import tsx src/index.ts auth:invite operator@example.com
+node --import tsx src/index.ts auth:invite backup-admin@example.com --role admin
+node --import tsx src/index.ts auth:list
+node --import tsx src/index.ts auth:revoke operator@example.com
+node --import tsx src/index.ts auth:disable operator@example.com
+node --import tsx src/index.ts auth:enable operator@example.com
+```
+
+Revocation signs the user out. Disabling an account also blocks future sign-ins. The CLI prevents disabling the last enabled administrator. To replace that administrator, approve a second administrator and verify their sign-in first. Run CLI commands under the trusted server account and restrict access to that account and the app files.
+
+### HTTPS deployment
+
+Point the HTTPS reverse proxy at `127.0.0.1:<WEB_PORT>` and preserve the public `Host` header, including a nonstandard port if configured. Forward browser `Origin` unchanged and keep the backend port private. Disable proxy buffering for `/api/events` so campaign updates reach the browser as they happen. Apply per-client rate limits to `/auth/google` and `/auth/callback`. Log paths without query strings and exclude authorization and cookie headers, particularly on `/auth/callback`.
+
+Before upgrading an existing instance, save a SQLite backup using the currently deployed version, and keep a secure copy of the sender encryption key, attachments, and WhatsApp state. Verify the upgrade on a database copy, approve the existing operators, and verify sign-in before sending traffic to the new instance. For a version rollback, restore the pre-upgrade backup to a separate location and run the older dashboard only behind its previous authenticated access boundary. For a restore using the current version, review approved users and run `node --import tsx src/index.ts auth:revoke-all` against the restored database before serving requests. Keep the upgraded database copy to preserve its audit history and later campaign records.
+
+### Audit history
+
+Administrators can open `/audit` to review activity. The SQLite audit trail records the event time, actor when known, action, target, and outcome. It complements the existing operational log in `LOG_DIR`. Back up audit history with the database, and choose a retention period for your deployment. Run the following as a trusted local command or scheduled job to remove expired auth records and audit entries older than the specified period.
+
+```bash
+node --import tsx src/index.ts auth:audit-prune --days 90
+```
 
 ## Safety model
 
@@ -147,6 +189,8 @@ Message statuses:
 | --- | --- | --- |
 | `DRY_RUN` | `true` | Blocks live delivery |
 | `WEB_PORT` | `3000` | Dashboard port |
+| `WEB_PUBLIC_ORIGIN` | `http://127.0.0.1:<WEB_PORT>` | Exact browser origin for sign-in and request validation |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | OAuth web client for dashboard sign-in |
 | `GROQ_API_KEY` / `GROQ_MODEL` | — / `openai/gpt-oss-120b` | AI drafting (hidden when no key is set) |
 | `MAX_MESSAGES_PER_RUN` | `100` | Attempts per run, including retries |
 | `SENDER_CONCURRENCY` | `1` | Parallel sends |
@@ -165,6 +209,7 @@ npm run cy:open    # Cypress, interactive
 
 ```
 src/
+  auth/         dashboard identities, sessions, and audit history
   cli/          one file per group of CLI commands
   database/     SQLite connection, transactions, migrations
   store/        everything saved about campaigns: Store class + one module per area

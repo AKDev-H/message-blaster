@@ -78,7 +78,7 @@ describe('Campaign dialog', () => {
         cy.get('#campaign-attachment').should('have.value', 'notes.txt');
     });
 
-    it('sends one workbook to Gmail and WhatsApp at once', () => {
+    it('creates one campaign from a Gmail and WhatsApp workbook', () => {
         cy.get('#compose').find('[data-close]').first().click();
         cy.task('workbook:create', {
             name: 'both',
@@ -91,7 +91,7 @@ describe('Campaign dialog', () => {
             cy.openComposer();
             cy.get('#campaign-name').type('launch');
             cy.chooseChannels(['gmail', 'whatsapp']);
-            cy.get('#channel-hint').should('have.text', 'Creates launch-gmail and launch-whatsapp.');
+            cy.get('#channel-hint').should('be.visible');
             cy.get('#template-download').should('have.attr', 'href', '/api/template?channel=both');
             cy.get('input[name="workbook"]').selectFile(path, { force: true });
             cy.get('#compose-upload').selectFile('tests/fixtures/sample-document.pdf', { force: true });
@@ -99,12 +99,13 @@ describe('Campaign dialog', () => {
             cy.typeMessage('Hello {{client_name}}');
             cy.get('#compose-submit').click();
         });
-        cy.contains('#toast', 'Created 2 campaigns');
-        cy.get('#campaign-rows tr').should('have.length', 2);
-        cy.get('#campaign-rows').should('contain', 'launch-gmail').and('contain', 'launch-whatsapp');
-        cy.get('#metric-queued').should('have.text', '3');
-        cy.get('#detail-heading').should('have.text', 'launch-gmail');
+        cy.location('pathname').should('eq', '/campaigns/launch');
+        cy.get('#detail-heading').should('have.text', 'launch');
+        cy.get('[data-detail-channel="gmail"]').click();
         cy.get('#detail-rows').should('contain', 'sample-document.pdf');
+        cy.get('#close-detail').click();
+        cy.get('#campaign-rows tr').should('have.length', 1).and('contain', 'launch');
+        cy.get('#metric-queued').should('have.text', '3');
     });
 
     it('creates a campaign from typed-in recipients', () => {

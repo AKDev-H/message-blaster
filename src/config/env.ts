@@ -57,7 +57,7 @@ export type BaseEnvironment = z.output<typeof schema>;
 export type Environment = BaseEnvironment & AppSettings;
 
 export function loadEnv(): BaseEnvironment {
-    config({ quiet: true });
+    if (process.env.MESSAGE_BLASTER_WORKER !== '1') config({ quiet: true });
     const result = schema.safeParse(process.env);
     if (!result.success) throw new Error(describeIssues(result.error.issues));
     return result.data;

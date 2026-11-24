@@ -15,7 +15,7 @@ async function resetDatabase() {
     try {
         db.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE');
         const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all();
-        for (const { name } of tables) db.exec(`DELETE FROM "${String(name).replaceAll('"', '""')}"`);
+        for (const { name } of tables.filter(table => table.name !== 'users')) db.exec(`DELETE FROM "${String(name).replaceAll('"', '""')}"`);
         db.exec('COMMIT; PRAGMA foreign_keys = ON');
     } finally {
         db.close();

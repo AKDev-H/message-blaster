@@ -8,6 +8,7 @@ import { openDatabase } from '../src/database/connection.js';
 import { Store, type PreparedRow } from '../src/store/index.js';
 import type { CampaignChannel, MessageStatus } from '../src/types/index.js';
 import { startWebServer } from '../src/web/server.js';
+import { approveTestUser, authenticatedFetch, mockGoogle, testLogin } from './support/web-auth.js';
 
 function row(rowNumber: number): PreparedRow {
     return {
@@ -69,12 +70,14 @@ test('campaign list filters by status and channel in SQL and pages ten at a time
 test('the dashboard API validates filters, and unknown pages, errors and maintenance get their own screens', async context => {
     const directory = await mkdtemp(join(tmpdir(), 'message-blaster-list-'));
     const env = { ...loadEnv(), ...DEFAULT_SETTINGS, DATABASE_URL: join(directory, 'app.db'), LOG_DIR: join(directory, 'logs'), MAINTENANCE_MODE: false };
-    const dashboard = await startWebServer(env, 0);
+    approveTestUser(env.DATABASE_URL);
+    const dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     context.after(async () => {
         await dashboard.close();
         await rm(directory, { recursive: true, force: true });
     });
-    const get = (path: string, html = false) => fetch(`${dashboard.url}${path}`, html ? { headers: { Accept: 'text/html' } } : undefined);
+    const request = authenticatedFetch(dashboard.url, await testLogin(dashboard.url));
+    const get = (path: string, html = false) => request(path, html ? { headers: { Accept: 'text/html' } } : undefined);
 
     const list = await (await get('/api/campaigns?status=failed&channel=whatsapp&page=1')).json() as Record<string, unknown>;
     assert.deepEqual([list.page, list.pageSize, list.matching, list.campaigns], [1, 10, 0, []]);
@@ -100,18 +103,20 @@ test('the dashboard API validates filters, and unknown pages, errors and mainten
 test('maintenance mode shows the maintenance page and pauses the API while assets still load', async context => {
     const directory = await mkdtemp(join(tmpdir(), 'message-blaster-maintenance-'));
     const env = { ...loadEnv(), ...DEFAULT_SETTINGS, DATABASE_URL: join(directory, 'app.db'), LOG_DIR: join(directory, 'logs'), MAINTENANCE_MODE: true };
-    const dashboard = await startWebServer(env, 0);
+    approveTestUser(env.DATABASE_URL);
+    const dashboard = await startWebServer(env, 0, { origin: 'http://127.0.0.1:0', provider: mockGoogle() });
     context.after(async () => {
         await dashboard.close();
         await rm(directory, { recursive: true, force: true });
     });
 
-    const home = await fetch(dashboard.url, { headers: { Accept: 'text/html' } });
+    const request = authenticatedFetch(dashboard.url, await testLogin(dashboard.url));
+    const home = await request('/', { headers: { Accept: 'text/html' } });
     assert.equal(home.status, 503);
     assert.equal(home.headers.get('retry-after'), '120');
     assert.match(await home.text(), /Message Blaster is being updated/u);
-    const api = await fetch(`${dashboard.url}/api/campaigns`);
+    const api = await request('/api/campaigns');
     assert.equal(api.status, 503);
     assert.match((await api.json() as { error: string }).error, /maintenance/u);
-    assert.equal((await fetch(`${dashboard.url}/pages.css`)).status, 200);
+    assert.equal((await request('/pages.css')).status, 200);
 });

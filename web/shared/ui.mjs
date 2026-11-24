@@ -47,6 +47,7 @@ export function replayAnimation(node, className) {
 
 export async function request(url, options) {
     const response = await fetchOrExplain(url, options);
+    if (response.status === 401) window.location.replace('/login');
     if (!response.ok) throw await responseError(response);
     if (response.status !== 204) return response.json();
 }

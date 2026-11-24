@@ -37,11 +37,15 @@ export interface CampaignSummary extends Omit<Campaign, 'accountId'> {
     skipped: number;
 }
 
+export const DRAFT_FIELDS = ['message', 'subject', 'attachment'] as const;
+export type DraftField = typeof DRAFT_FIELDS[number];
+
 export interface WebDraftSettings {
     script: string;
     scriptHtml?: string;
     subject: string;
     attachment: string;
+    overrides?: DraftField[];
 }
 
 export interface WebDraft extends WebDraftSettings {
@@ -101,8 +105,20 @@ export function toCampaignSummary(row: SqlRow): CampaignSummary {
 
 export function toWebDraftSettings(row: SqlRow): WebDraftSettings {
     const scriptHtml = nullableText(row.script_html);
-    const settings = { script: String(row.script), subject: String(row.subject), attachment: String(row.attachment) };
+    const overrides = readOverrides(row.overrides);
+    const settings: WebDraftSettings = {
+        script: String(row.script), subject: String(row.subject), attachment: String(row.attachment), ...(overrides.length ? { overrides } : {}),
+    };
     return scriptHtml ? { ...settings, scriptHtml } : settings;
+}
+
+function readOverrides(value: SQLOutputValue | undefined): DraftField[] {
+    try {
+        const parsed: unknown = JSON.parse(String(value ?? '[]'));
+        return Array.isArray(parsed) ? DRAFT_FIELDS.filter(field => parsed.includes(field)) : [];
+    } catch {
+        return [];
+    }
 }
 
 export function toMessageRecord(row: SqlRow): MessageRecord {

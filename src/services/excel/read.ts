@@ -12,7 +12,16 @@ interface ColumnPosition {
 }
 
 export async function readExcel(source: string | Buffer, channel: CampaignChannel = 'whatsapp'): Promise<ImportRow[]> {
+    return channelRows(await firstSheet(source), channel);
+}
+
+// Loads the workbook once and reads each channel's columns from the same sheet.
+export async function readExcelChannels(source: string | Buffer, channels: readonly CampaignChannel[]): Promise<Map<CampaignChannel, ImportRow[]>> {
     const sheet = await firstSheet(source);
+    return new Map(channels.map(channel => [channel, channelRows(sheet, channel)]));
+}
+
+function channelRows(sheet: ExcelJS.Worksheet, channel: CampaignChannel): ImportRow[] {
     const columns = locateColumns(sheet.getRow(1), channel);
     const records: ImportRow[] = [];
     sheet.eachRow((row, rowNumber) => {

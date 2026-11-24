@@ -4,6 +4,7 @@ import type { BaseEnvironment, Environment } from '../../config/env.js';
 import type { WhatsAppLinker } from '../../services/whatsapp/link.js';
 import type { CampaignChannel } from '../../types/index.js';
 import type { Store } from '../../store/index.js';
+import type { RequestAudit } from '../auth/audit.js';
 import type { LiveUpdates } from '../live-updates.js';
 import type { WebRunner } from '../runner.js';
 
@@ -24,6 +25,8 @@ export interface Request {
     res: ServerResponse;
     params: string[];
     query: URLSearchParams;
+    audit: RequestAudit;
+    sessionActive(): boolean;
 }
 
 export interface Route {

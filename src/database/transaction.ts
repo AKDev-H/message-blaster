@@ -1,13 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 export function transaction<T>(db: DatabaseSync, operation: () => T): T {
-    db.exec('BEGIN IMMEDIATE');
+    const nested = db.isTransaction;
+    db.exec(nested ? 'SAVEPOINT app_transaction' : 'BEGIN IMMEDIATE');
     try {
         const result = operation();
-        db.exec('COMMIT');
+        db.exec(nested ? 'RELEASE app_transaction' : 'COMMIT');
         return result;
     } catch (error) {
-        db.exec('ROLLBACK');
+        db.exec(nested ? 'ROLLBACK TO app_transaction; RELEASE app_transaction' : 'ROLLBACK');
         throw error;
     }
 }

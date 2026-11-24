@@ -60,11 +60,13 @@ describe('Dashboard', () => {
             ],
         });
         cy.contains('#toast', 'Campaign created');
-        cy.get('#metric-queued').should('have.text', '2');
+        cy.location('pathname').should('eq', '/campaigns/november');
         cy.get('#details').should('be.visible');
         cy.get('#detail-heading').should('have.text', 'november');
         cy.get('#detail-rows tr').should('have.length', 2).first().should('contain', 'Ari').and('contain', 'Hi Ari');
         cy.get('#detail-actions').contains('button', 'Start sending').should('be.disabled');
+        cy.get('#close-detail').click();
+        cy.get('#metric-queued').should('have.text', '2');
     });
 
     it('filters the queue and restores it', () => {
@@ -84,6 +86,7 @@ describe('Dashboard', () => {
                 { 'Client Name': 'Cy', 'Phone Number': '+60123456788', 'Consent Status': 'Opted In' },
             ],
         });
+        cy.get('#close-detail').click();
         cy.get('#campaign-count').should('have.text', '2 campaigns');
         cy.get('#metric-queued').should('have.text', '3');
 

@@ -5,7 +5,7 @@ import { ConfirmDialog } from './dialogs/confirm.mjs';
 import { SettingsDialog } from './settings/settings.mjs';
 import { hydrateBrands } from './shared/brands.mjs';
 import { hydrateIcons } from './shared/icons.mjs';
-import { get, setError } from './shared/ui.mjs';
+import { get, request, setError, whileBusy } from './shared/ui.mjs';
 import { FileViewer } from './viewer/viewer.mjs';
 
 const RECONNECT_CHECK_MS = 5000;
@@ -37,6 +37,7 @@ const confirmation = new ConfirmDialog(async action => {
 
 wireDialogs();
 wireToolbar();
+wireAccount();
 followLiveUpdates();
 queue.load();
 
@@ -97,6 +98,21 @@ function wireToolbar() {
     get('open-settings').addEventListener('click', () => settings.open());
     get('empty-action').addEventListener('click', () => (queue.hasCampaigns ? queue.clearFilters() : composer.open()));
     wireTemplateMenu(get('template-menu'));
+}
+
+function wireAccount() {
+    const control = get('sign-out');
+    request('/api/session').then(({ user }) => {
+        get('open-audit').hidden = user.role !== 'admin';
+    }).catch(showLoadError);
+    control.addEventListener('click', () => void whileBusy(control, async () => {
+        try {
+            await request('/auth/logout', { method: 'POST' });
+            window.location.replace('/login');
+        } catch (error) {
+            showLoadError(error);
+        }
+    }));
 }
 
 function wireTemplateMenu(menu) {

@@ -1,5 +1,8 @@
 beforeEach(() => {
     cy.task('db:reset');
+    cy.request({ url: '/auth/google', method: 'POST', headers: { Origin: Cypress.config('baseUrl') } }).then(({ body }) => {
+        cy.request({ url: body.url, followRedirect: false }).its('status').should('equal', 303);
+    });
 });
 
 Cypress.Commands.add('openDashboard', () => {

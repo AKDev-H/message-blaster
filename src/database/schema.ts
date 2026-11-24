@@ -5,9 +5,12 @@ import { webMigration } from './migrations/003-web.js';
 import { richScriptsMigration } from './migrations/004-rich-scripts.js';
 import { settingsMigration } from './migrations/005-settings.js';
 import { dropClientIdMigration } from './migrations/006-drop-client-id.js';
+import { authMigration } from './migrations/007-auth.js';
+import { campaignGroupsMigration } from './migrations/008-campaign-groups.js';
 import { transaction } from './transaction.js';
 
-const migrations = [initialMigration, gmailMigration, webMigration, richScriptsMigration, settingsMigration, dropClientIdMigration];
+const migrations = [initialMigration, gmailMigration, webMigration, richScriptsMigration, settingsMigration, dropClientIdMigration, authMigration,
+    campaignGroupsMigration];
 const latestVersion = migrations.length;
 
 export function migrate(db: DatabaseSync): void {

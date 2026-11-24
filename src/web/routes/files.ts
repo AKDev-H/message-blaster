@@ -34,16 +34,18 @@ function cachedTemplate(app: App, channel: CampaignChannel | 'both'): Promise<Bu
     return template;
 }
 
-async function showAttachment({ res, params, query }: Request, app: App): Promise<void> {
+async function showAttachment({ res, params, query, audit }: Request, app: App): Promise<void> {
     const name = decodeName(params[0]!);
     const file = await readAttachment(app.env.ATTACHMENTS_DIR, name).catch((error: unknown) => {
         throw new HttpError(404, error instanceof Error ? error.message : 'Attachment was not found.');
     });
+    audit.record(query.has('download') ? 'attachment.download' : 'attachment.view', 'success');
     sendAttachment(res, file.name, file.data, query.has('download'));
 }
 
-async function uploadAttachment({ req, res }: Request, app: App): Promise<void> {
-    const name = await storeAttachment(app.env.ATTACHMENTS_DIR, await readForm(req));
+async function uploadAttachment({ req, res, audit }: Request, app: App): Promise<void> {
+    const form = await readForm(req);
+    const name = await audit.effect('attachment.upload', () => storeAttachment(app.env.ATTACHMENTS_DIR, form));
     json(res, 201, { name });
 }
 

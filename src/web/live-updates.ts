@@ -4,7 +4,7 @@ const PROGRESS_CHECK_MS = 500;
 const HEARTBEAT_MS = 15_000;
 
 export class LiveUpdates {
-    readonly #subscribers = new Set<ServerResponse>();
+    readonly #subscribers = new Map<ServerResponse, () => boolean>();
     readonly #blocked = new Set<ServerResponse>();
     readonly #pending = new Set<ServerResponse>();
     #version: number | undefined;
@@ -21,7 +21,10 @@ export class LiveUpdates {
     }
 
     start(): void {
-        const keepAlive = () => this.#subscribers.forEach(client => this.write(client, ': keep-alive\n\n', false));
+        const keepAlive = () => {
+            this.revalidate();
+            for (const client of this.#subscribers.keys()) this.write(client, ': keep-alive\n\n', false);
+        };
         this.#timers = [setInterval(() => this.publishSafely(), PROGRESS_CHECK_MS).unref(), setInterval(keepAlive, HEARTBEAT_MS).unref()];
     }
 
@@ -36,9 +39,9 @@ export class LiveUpdates {
         });
     }
 
-    subscribe(res: ServerResponse): void {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive' });
-        this.#subscribers.add(res);
+    subscribe(res: ServerResponse, sessionActive: () => boolean): void {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+        this.#subscribers.set(res, sessionActive);
         res.on('close', () => this.forget(res));
         this.write(res, `retry: 2000\n${this.event()}`);
     }
@@ -46,7 +49,19 @@ export class LiveUpdates {
     close(): void {
         this.#closing = true;
         this.#timers.forEach(clearInterval);
-        for (const client of this.#subscribers) client.end();
+        for (const client of this.#subscribers.keys()) client.end();
+    }
+
+    revalidate(): void {
+        for (const [client, sessionActive] of this.#subscribers) {
+            try {
+                if (sessionActive()) continue;
+            } catch {
+                // Close the stream if access can no longer be verified.
+            }
+            this.forget(client);
+            client.end();
+        }
     }
 
     private publishSafely(): void {
@@ -62,11 +77,12 @@ export class LiveUpdates {
         if (this.#closing || this.#subscribers.size === 0) return;
         const version = this.dataVersion();
         if (!this.#dirty && version === this.#version) return;
+        this.revalidate();
         this.#version = version;
         this.#dirty = false;
         this.#revision += 1;
         const event = this.event();
-        for (const client of this.#subscribers) this.write(client, event);
+        for (const client of this.#subscribers.keys()) this.write(client, event);
     }
 
     private event(): string {
@@ -87,7 +103,9 @@ export class LiveUpdates {
         this.#blocked.delete(client);
         if (!this.#pending.delete(client) || this.#closing) return;
         try {
-            this.write(client, this.event());
+            const sessionActive = this.#subscribers.get(client);
+            if (sessionActive?.()) this.write(client, this.event());
+            else client.end();
         } catch {
             client.destroy();
         }

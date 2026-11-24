@@ -5,7 +5,7 @@ describe('Campaign list', () => {
 
     it('filters on the server and pages through campaigns ten at a time', () => {
         seedCampaigns(23);
-        const listed = query => cy.intercept({ method: 'GET', pathname: '/api/campaigns', query });
+        const listed = query => cy.intercept({ method: 'GET', pathname: '/api/campaign-groups', query });
         listed({ page: '2' }).as('page2');
         listed({ page: '1', channel: 'whatsapp' }).as('whatsapp');
         listed({ page: '1', channel: 'whatsapp', status: 'processing' }).as('sending');
@@ -39,7 +39,7 @@ describe('Campaign list', () => {
 
     it('shows a skeleton instead of a blank list while a page loads', () => {
         seedCampaigns(12);
-        cy.intercept('GET', '/api/campaigns*', req => req.continue(res => res.setDelay(600))).as('slowList');
+        cy.intercept('GET', '/api/campaign-groups*', req => req.continue(res => res.setDelay(600))).as('slowList');
         cy.visit('/');
         cy.get('#campaign-rows .skeleton-row').should('have.length.greaterThan', 0);
         cy.get('#campaign-rows').should('have.attr', 'aria-busy', 'true');

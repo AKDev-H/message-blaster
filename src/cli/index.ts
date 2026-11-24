@@ -1,4 +1,5 @@
 import { Command, CommanderError } from 'commander';
+import { registerAuthCommands } from './commands/auth.js';
 import { registerCampaignCommands } from './commands/campaign.js';
 import { registerConsentCommands } from './commands/consent.js';
 import { registerSetupCommands } from './commands/setup.js';
@@ -17,6 +18,7 @@ export async function runCli(argv: string[]): Promise<void> {
 
 function registerAllCommands(program: Command): void {
     registerSetupCommands(program);
+    registerAuthCommands(program);
     registerWhatsAppCommands(program);
     registerCampaignCommands(program);
     registerTestCommands(program);

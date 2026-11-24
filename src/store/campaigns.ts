@@ -5,7 +5,7 @@ import { nowIso, toCampaign, toCampaignSummary, type Campaign, type CampaignSumm
 import { PENDING_STATUSES, SENT_STATUSES } from './statuses.js';
 
 const INSERT_CAMPAIGN = `
-    INSERT INTO campaigns(id, state, is_test, created_at, updated_at, channel) VALUES (?, 'Draft', ?, ?, ?, ?)
+    INSERT INTO campaigns(id, state, is_test, created_at, updated_at, channel, group_id) VALUES (?, 'Draft', ?, ?, ?, ?, ?)
 `;
 const SUMMARY = `
     SELECT c.id, c.state, c.created_at, c.updated_at, c.is_test, c.channel,
@@ -28,10 +28,10 @@ const DELETE_CAMPAIGN = [
     'DELETE FROM campaigns WHERE id = ?',
 ];
 
-export function insertCampaign(db: DatabaseSync, id: string, isTest: boolean, channel: CampaignChannel): void {
+export function insertCampaign(db: DatabaseSync, id: string, isTest: boolean, channel: CampaignChannel, groupId: number | null = null): void {
     if (db.prepare('SELECT id FROM campaigns WHERE id = ?').get(id)) throw new CampaignExistsError(`Campaign "${id}" already exists`);
     const timestamp = nowIso();
-    db.prepare(INSERT_CAMPAIGN).run(id, Number(isTest), timestamp, timestamp, channel);
+    db.prepare(INSERT_CAMPAIGN).run(id, Number(isTest), timestamp, timestamp, channel, groupId);
 }
 
 export function getCampaign(db: DatabaseSync, id: string): Campaign {
@@ -133,5 +133,9 @@ export function saveAccount(db: DatabaseSync, id: string, accountId: string): vo
 }
 
 export function removeCampaign(db: DatabaseSync, id: string): void {
+    const groupId = db.prepare('SELECT group_id FROM campaigns WHERE id = ?').get(id)?.group_id;
     for (const sql of DELETE_CAMPAIGN) db.prepare(sql).run(id);
+    if (typeof groupId === 'number') {
+        db.prepare('DELETE FROM campaign_groups WHERE id = ? AND NOT EXISTS (SELECT 1 FROM campaigns WHERE group_id = ?)').run(groupId, groupId);
+    }
 }
