@@ -672,6 +672,8 @@ kbd {
 .segmented label:hover span { color: var(--ink); }
 .segmented input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(30 42 43 / .14); }
 .segmented input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+.segmented span:has(svg) { display: inline-flex; align-items: center; gap: 5px; }
+.segmented .channel-icon { width: auto; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; }
 
 .recipient-source { display: grid; gap: 6px; }
 .recipient-source[hidden] { display: none; }
@@ -914,6 +916,11 @@ button.text-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .settings-panel .dialog-body { display: grid; gap: 12px; }
 .settings-error { margin: 10px 16px 0; }
 .settings-intro { color: var(--muted); }
+.email-provider { display: grid; gap: 12px; }
+.email-provider[hidden] { display: none; }
+.field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.field-pair:has(#smtp-port) { grid-template-columns: minmax(0, 1fr) 96px; }
+.field-optional { color: var(--muted); font-size: .76rem; font-weight: 500; }
 .settings-success { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: var(--radius-small); background: var(--sage-wash); color: var(--sage); font-weight: 560; }
 .input-suffix { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .input-suffix input { max-width: 120px; }
@@ -1322,6 +1329,7 @@ button.text-link { padding: 0; border: 0; background: none; cursor: pointer; }
     .dialog-footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
     .dialog-footer .button { flex: 1; min-height: 46px; border-radius: 10px; }
     .settings-tabs { padding-inline: 12px; }
+    .field-pair:not(:has(#smtp-port)) { grid-template-columns: minmax(0, 1fr); }
     .settings-tabs [role="tab"] { flex: 1; justify-content: center; min-height: 44px; }
     .attachment-field .icon-button.bordered { width: var(--control); height: var(--control); }
     .file-list li { min-height: 48px; }

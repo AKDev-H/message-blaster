@@ -5,7 +5,8 @@ import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel } from '../../types/index
 import type { RequestAudit } from '../auth/audit.js';
 import { HttpError, orFail } from '../http-error.js';
 import { json } from '../http.js';
-import { readChannel, readGmailSettings, readJson, readSendingSettings, readTestRecipient } from '../input/index.js';
+import { EMAIL_SETUP_HINT } from '../../services/email-account.js';
+import { readChannel, readEmailSettings, readJson, readSendingSettings, readTestRecipient } from '../input/index.js';
 import { senderAccount } from '../senders.js';
 import type { App, Request, Route } from './route.js';
 
@@ -35,9 +36,20 @@ function settingsView(app: App) {
     return {
         dryRun: app.env.DRY_RUN,
         gmail: {
+            provider: settings.EMAIL_PROVIDER,
             user: settings.GMAIL_USER,
             passwordSet: Boolean(settings.GMAIL_APP_PASSWORD),
             passwordUnreadable: unreadable.includes('GMAIL_APP_PASSWORD'),
+            smtp: {
+                host: settings.SMTP_HOST,
+                port: settings.SMTP_PORT,
+                security: settings.SMTP_SECURITY,
+                user: settings.SMTP_USER,
+                from: settings.SMTP_FROM,
+                fromName: settings.SMTP_FROM_NAME,
+                passwordSet: Boolean(settings.SMTP_PASSWORD),
+                passwordUnreadable: unreadable.includes('SMTP_PASSWORD'),
+            },
             test: test('gmail'),
         },
         whatsapp: { ...app.whatsapp.state(), test: test('whatsapp') },
@@ -48,7 +60,8 @@ function settingsView(app: App) {
 
 async function saveGmail({ req, audit }: Request, app: App): Promise<void> {
     const body = await readJson(req);
-    const settings = readGmailSettings(body, Boolean(app.settings().GMAIL_APP_PASSWORD));
+    const saved = app.settings();
+    const settings = readEmailSettings(body, { gmail: Boolean(saved.GMAIL_APP_PASSWORD), smtp: Boolean(saved.SMTP_PASSWORD) });
     audit.mutation('sender.gmail.settings', () => saveSettings(app.db, app.env, settings));
 }
 
@@ -58,8 +71,8 @@ async function saveSending({ req, audit }: Request, app: App): Promise<void> {
 }
 
 async function verifyGmail({ res, audit }: Request, app: App): Promise<void> {
-    const { GmailService } = await import('../../services/gmail.service.js');
-    await orFail(502, 'Could not connect to Gmail.', () => new GmailService(app.settings()).connect());
+    const { EmailService } = await import('../../services/email.service.js');
+    await orFail(502, 'Could not connect to the mail server.', () => new EmailService(app.settings()).connect());
     audit.record('sender.gmail.verify', 'success');
     json(res, 200, { ok: true });
 }
@@ -73,7 +86,7 @@ async function sendTest({ req, audit, params }: Request, app: App): Promise<void
     const recipient = readTestRecipient(await readJson(req), channel);
     if (app.env.DRY_RUN) throw new HttpError(409, 'Live sending is off. Set DRY_RUN=false in .env, then restart the dashboard.');
     const settings = app.settings();
-    if (!senderAccount(app, channel, settings)) throw new HttpError(409, channel === 'gmail' ? 'Save your Gmail address and App Password first.' : 'Link WhatsApp first.');
+    if (!senderAccount(app, channel, settings)) throw new HttpError(409, channel === 'gmail' ? `${EMAIL_SETUP_HINT[settings.EMAIL_PROVIDER]} first.` : 'Link WhatsApp first.');
     app.runner.ensureIdle();
     const id = await orFail(400, 'Check the test recipient.', () => createTestCampaign(app.store, settings, channel, recipient), 'testRecipient');
     startTest(app, id, channel, audit);

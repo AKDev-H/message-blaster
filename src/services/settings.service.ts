@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { isSupportedCountry, type CountryCode } from 'libphonenumber-js';
-import { DEFAULT_SETTINGS, type AppSettings, type BaseEnvironment, type Environment } from '../config/env.js';
+import { DEFAULT_SETTINGS, EMAIL_PROVIDERS, SMTP_SECURITY_MODES, type AppSettings, type BaseEnvironment, type Environment } from '../config/env.js';
 import { transaction } from '../database/transaction.js';
 import { decryptSecret, encryptSecret, isEncrypted, loadSecretKey, SecretError } from './secret.service.js';
 
@@ -14,8 +14,16 @@ interface SettingDefinition<K extends SettingKey> {
 }
 
 const DEFINITIONS: { [K in SettingKey]: SettingDefinition<K> } = {
+    EMAIL_PROVIDER: { parse: value => oneOf(EMAIL_PROVIDERS, value) },
     GMAIL_USER: { parse: value => value.trim() },
     GMAIL_APP_PASSWORD: { secret: true, parse: value => value.replaceAll(/\s/gu, '') },
+    SMTP_HOST: { parse: value => value.trim() },
+    SMTP_PORT: { parse: parsePort },
+    SMTP_SECURITY: { parse: value => oneOf(SMTP_SECURITY_MODES, value) },
+    SMTP_USER: { parse: value => value.trim() },
+    SMTP_PASSWORD: { secret: true, parse: value => value },
+    SMTP_FROM: { parse: value => value.trim() },
+    SMTP_FROM_NAME: { parse: value => value.trim() },
     DEFAULT_COUNTRY: { parse: parseCountry },
     MESSAGE_DELAY_MS: { parse: parseDelay },
 };
@@ -64,6 +72,16 @@ export function migrateSettings(db: DatabaseSync, env: BaseEnvironment, legacy: 
 function parseCountry(value: string): CountryCode | undefined {
     const code = value.trim().toUpperCase();
     return isSupportedCountry(code) ? code as CountryCode : undefined;
+}
+
+function oneOf<T extends string>(options: readonly T[], value: string): T | undefined {
+    const trimmed = value.trim();
+    return options.find(option => option === trimmed);
+}
+
+function parsePort(value: string): number | undefined {
+    const port = Number(value);
+    return /^\d+$/u.test(value) && port >= 1 && port <= 65_535 ? port : undefined;
 }
 
 function parseDelay(value: string): number | undefined {

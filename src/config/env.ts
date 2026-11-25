@@ -5,16 +5,37 @@ import type { CountryCode } from 'libphonenumber-js';
 import { z } from 'zod';
 import { normalizeEmail } from '../utils/email.util.js';
 
+export const EMAIL_PROVIDERS = ['gmail', 'smtp'] as const;
+export type EmailProvider = typeof EMAIL_PROVIDERS[number];
+export const SMTP_SECURITY_MODES = ['tls', 'starttls'] as const;
+export type SmtpSecurity = typeof SMTP_SECURITY_MODES[number];
+
 export interface AppSettings {
+    EMAIL_PROVIDER: EmailProvider;
     GMAIL_USER: string;
     GMAIL_APP_PASSWORD: string;
+    SMTP_HOST: string;
+    SMTP_PORT: number;
+    SMTP_SECURITY: SmtpSecurity;
+    SMTP_USER: string;
+    SMTP_PASSWORD: string;
+    SMTP_FROM: string;
+    SMTP_FROM_NAME: string;
     DEFAULT_COUNTRY: CountryCode;
     MESSAGE_DELAY_MS: number;
 }
 
 export const DEFAULT_SETTINGS: Readonly<AppSettings> = {
+    EMAIL_PROVIDER: 'gmail',
     GMAIL_USER: '',
     GMAIL_APP_PASSWORD: '',
+    SMTP_HOST: '',
+    SMTP_PORT: 587,
+    SMTP_SECURITY: 'starttls',
+    SMTP_USER: '',
+    SMTP_PASSWORD: '',
+    SMTP_FROM: '',
+    SMTP_FROM_NAME: '',
     DEFAULT_COUNTRY: 'MY',
     MESSAGE_DELAY_MS: 10_000,
 };

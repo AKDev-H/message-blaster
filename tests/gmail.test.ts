@@ -12,6 +12,7 @@ import { initialMigration } from '../src/database/migrations/001-initial.js';
 import { exportCampaign } from '../src/services/campaign/export.js';
 import { importCampaign } from '../src/services/campaign/import.js';
 import { generateExcel } from '../src/services/excel/template.js';
+import { EmailService } from '../src/services/email.service.js';
 import { runLiveCampaign } from '../src/services/live-campaign.service.js';
 import { Store } from '../src/store/index.js';
 
@@ -104,6 +105,40 @@ test('Gmail import and approved SMTP runs share the campaign queue and track acc
     assert.equal(results.getCell('B1').value, 'Email Address');
     assert.equal(results.getCell('I1').value, 'Gmail Message ID');
     assert.equal(results.getCell('I2').value, mail.messageId);
+});
+
+test('custom SMTP connects with the saved server, security mode and From name', async context => {
+    const sent: SendMailOptions[] = [];
+    const smtp = context.mock.method(nodemailer, 'createTransport', () => ({
+        verify: async () => true,
+        async sendMail(message: SendMailOptions) {
+            sent.push(message);
+            return { accepted: [message.to] };
+        },
+    }));
+    const settings = {
+        ...DEFAULT_SETTINGS, EMAIL_PROVIDER: 'smtp', SMTP_HOST: 'smtp.example.com', SMTP_PORT: 587, SMTP_SECURITY: 'starttls',
+        SMTP_USER: 'apikey', SMTP_PASSWORD: 'secret', SMTP_FROM: 'Team@Example.com', SMTP_FROM_NAME: 'Team',
+    } as const;
+    const service = new EmailService(settings);
+    assert.equal(service.accountId, 'smtp:smtp.example.com:team@example.com');
+    await service.connect();
+    await service.send({ id: '<id@example.com>', phone: '', email: 'client@example.com', subject: 'Hi', text: 'Hello' });
+    assert.deepEqual(smtp.mock.calls[0]!.arguments[0], {
+        host: 'smtp.example.com', port: 587, secure: false, requireTLS: true,
+        auth: { user: 'apikey', pass: 'secret' },
+        connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 60_000,
+        disableFileAccess: true, disableUrlAccess: true,
+    });
+    assert.deepEqual(sent[0]?.from, { name: 'Team', address: 'team@example.com' });
+
+    new EmailService({ ...settings, SMTP_SECURITY: 'tls', SMTP_PORT: 465, SMTP_USER: '', SMTP_PASSWORD: '', SMTP_FROM_NAME: '' });
+    assert.deepEqual(smtp.mock.calls[1]!.arguments[0], {
+        host: 'smtp.example.com', port: 465, secure: true,
+        connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 60_000,
+        disableFileAccess: true, disableUrlAccess: true,
+    }, 'servers without sign-in get no auth block');
+    assert.throws(() => new EmailService({ ...settings, SMTP_PASSWORD: '' }), /SMTP password/);
 });
 
 test('the Gmail migration preserves legacy WhatsApp campaigns, attempts and withdrawals', async () => {

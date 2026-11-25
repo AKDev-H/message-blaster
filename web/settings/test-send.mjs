@@ -6,7 +6,7 @@ const COPY = {
         noun: 'email',
         type: 'email',
         placeholder: 'you@example.com',
-        unavailable: 'Save your Gmail address and App Password first.',
+        unavailable: 'Save your email sender details first.',
         required: 'Before campaigns can start, send yourself a test email and confirm it arrived.',
         check: 'Check the inbox (and spam folder), then confirm.',
     },

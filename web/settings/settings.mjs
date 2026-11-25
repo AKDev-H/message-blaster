@@ -1,5 +1,5 @@
 import { get, request, setError } from '../shared/ui.mjs';
-import { GmailForm, SendingForm } from './forms.mjs';
+import { EmailForm, SendingForm } from './forms.mjs';
 import { TestSend } from './test-send.mjs';
 import { WhatsAppPanel } from './whatsapp.mjs';
 
@@ -12,7 +12,7 @@ export class SettingsDialog {
 
     constructor() {
         const redrawStatus = settings => this.render(settings, { forms: false });
-        this.gmail = new GmailForm(settings => this.render(settings));
+        this.gmail = new EmailForm(settings => this.render(settings));
         this.sending = new SendingForm(settings => this.render(settings));
         this.whatsapp = new WhatsAppPanel(settings => this.render(settings));
         this.tests = { gmail: new TestSend(get('gmail-test'), 'gmail', redrawStatus), whatsapp: new TestSend(get('whatsapp-test'), 'whatsapp', redrawStatus) };
@@ -45,7 +45,7 @@ export class SettingsDialog {
     #renderTests(settings) {
         const linked = settings.whatsapp.status === 'linked';
         get('whatsapp-test').hidden = !linked;
-        const gmailSending = this.tests.gmail.render({ dryRun: settings.dryRun, test: settings.gmail.test, fallbackRecipient: settings.gmail.user });
+        const gmailSending = this.tests.gmail.render({ dryRun: settings.dryRun, test: settings.gmail.test, fallbackRecipient: settings.gmail.provider === 'smtp' ? settings.gmail.smtp.from : settings.gmail.user });
         const whatsappSending = linked && this.tests.whatsapp.render({ dryRun: settings.dryRun, test: settings.whatsapp.test });
         return gmailSending || whatsappSending;
     }

@@ -295,6 +295,25 @@ test('dashboard uploads, edits, streams progress, pauses, retries, cancels and d
     assert.equal(tested.gmail.test.latest.recipient, 'me@example.com');
     const confirmed = await (await post('/api/settings/gmail/test/confirm')).json();
     assert.equal(confirmed.gmail.test.confirmed, true);
+
+    const smtpBody = { host: 'SMTP.Example.com', port: 587, security: 'starttls', user: 'apikey', password: 'smtp secret', from: 'team@example.com', fromName: 'Team' };
+    const badSmtp = await put('/api/settings/gmail', { provider: 'smtp', smtp: { ...smtpBody, host: 'not a host' } });
+    assert.equal((await badSmtp.json()).field, 'smtpHost');
+    const noPassword = await put('/api/settings/gmail', { provider: 'smtp', smtp: { ...smtpBody, password: '' } });
+    assert.equal((await noPassword.json()).field, 'smtpPassword');
+    const savedSmtp = await (await put('/api/settings/gmail', { provider: 'smtp', smtp: smtpBody })).json();
+    assert.equal(savedSmtp.gmail.provider, 'smtp');
+    assert.deepEqual(savedSmtp.gmail.smtp, {
+        host: 'smtp.example.com', port: 587, security: 'starttls', user: 'apikey', from: 'team@example.com', fromName: 'Team',
+        passwordSet: true, passwordUnreadable: false,
+    });
+    assert.equal(savedSmtp.gmail.test.account, 'smtp:smtp.example.com:team@example.com');
+    assert.equal(savedSmtp.gmail.test.confirmed, false, 'a new SMTP sender needs its own confirmed test');
+    assert.doesNotMatch(JSON.stringify(savedSmtp), /smtp secret/u);
+    assert.equal(savedSmtp.gmail.passwordSet, true, 'the Gmail App Password is kept while SMTP is active');
+    const backToGmail = await (await put('/api/settings/gmail', { provider: 'gmail', gmail: { user: 'other@gmail.com', password: '' } })).json();
+    assert.equal(backToGmail.gmail.test.confirmed, true, 'switching back keeps the Gmail confirmation');
+    assert.equal(backToGmail.gmail.smtp.passwordSet, true, 'the SMTP password is kept while Gmail is active');
     assert.ok(!(await (await request('/api/campaign-groups')).json()).campaigns.some((campaign: { isTest: boolean }) => campaign.isTest),
         'test sends stay out of the campaign list');
     const sending = await (await put('/api/settings/sending', { country: 'sg', delaySeconds: 2.5 })).json();

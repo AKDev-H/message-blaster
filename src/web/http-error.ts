@@ -3,7 +3,8 @@ import { SecretError } from '../services/secret.service.js';
 import { CampaignExistsError, ConflictError, NotFoundError } from '../errors.js';
 
 export type DraftField = 'id' | 'channel' | 'workbook' | 'recipients' | 'subject' | 'script' | 'attachment'
-    | 'gmailUser' | 'gmailPassword' | 'country' | 'delay' | 'testRecipient';
+    | 'gmailUser' | 'gmailPassword' | 'smtpHost' | 'smtpPort' | 'smtpSecurity' | 'smtpUser' | 'smtpPassword' | 'smtpFrom'
+    | 'country' | 'delay' | 'testRecipient';
 
 export class HttpError extends Error {
     constructor(readonly status: number, message: string, readonly field?: DraftField) {

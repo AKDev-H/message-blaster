@@ -4,5 +4,5 @@ export {
     channelDrafts, prepareCampaigns, readDraft, sharedContent, type CampaignTarget, type ChannelDraft, type Draft, type PreparedCampaign,
 } from './draft.js';
 export { listAttachments, storeAttachment } from './attachments.js';
-export { readDraftRequest, readGmailSettings, readReview, readSendingSettings, readTestRecipient } from './settings.js';
+export { readDraftRequest, readEmailSettings, readReview, readSendingSettings, readTestRecipient } from './settings.js';
 export { readCampaignQuery } from './campaign-query.js';

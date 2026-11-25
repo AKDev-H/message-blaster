@@ -1,6 +1,6 @@
 # Message Blaster
 
-Send opted-in campaigns (up to 5,000 recipients) from an Excel workbook through **Gmail** (SMTP + App Password) or **WhatsApp Business** (via [Baileys](https://github.com/WhiskeySockets/docs/blob/main/quickstart.mdx), an unofficial linked-device library). Everything runs locally on SQLite.
+Send opted-in campaigns (up to 5,000 recipients) from an Excel workbook through **Gmail** (SMTP + App Password), **any SMTP server** or **WhatsApp Business** (via [Baileys](https://github.com/WhiskeySockets/docs/blob/main/quickstart.mdx), an unofficial linked-device library). Everything runs locally on SQLite.
 
 > [!WARNING]
 > WhatsApp may restrict accounts that use unofficial clients. The rate limits here are safeguards, not guarantees.
@@ -83,7 +83,7 @@ node --import tsx src/index.ts auth:audit-prune --days 90
 Live sending requires all of the following:
 
 1. `DRY_RUN=false` in `.env`
-2. A test sent to yourself and confirmed as received for that sender account (**Settings › Gmail** or **Settings › WhatsApp** › *Test send*)
+2. A test sent to yourself and confirmed as received for that sender account (**Settings › Email** or **Settings › WhatsApp** › *Test send*)
 3. `--live --approve <campaign-id>` on the CLI, or typing the campaign ID in the dashboard
 
 Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withdrawn recipients are skipped and reported.
@@ -98,7 +98,7 @@ Only rows with `Consent Status = Opted In` are sent. Invalid, duplicate or withd
 
 Counting: **People sent to** counts each person once if any channel accepted their message, so someone reached on both channels is one person but two **successful sends**. Campaigns grouped from older split imports without a shared workbook show per-channel counts instead. Once a channel starts, its content is locked; the other channel stays editable until it is scheduled to send. Renaming changes the display name only, never the link.
 
-**Settings** holds Gmail credentials (the App Password is stored encrypted), WhatsApp QR linking, send pacing and the **Test send** that unlocks campaigns for each sender account. The dashboard and the CLI both read them. Keep the dashboard running while a campaign sends.
+**Settings** holds the email sender, either a Gmail App Password or a custom SMTP server (passwords are stored encrypted), WhatsApp QR linking, send pacing and the **Test send** that unlocks campaigns for each sender account. The dashboard and the CLI both read them. Keep the dashboard running while a campaign sends.
 
 Attachments are any common format up to 10 MB (executables and scripts are refused). Upload them in **Attachments** and reference them by filename in the workbook.
 
@@ -123,7 +123,7 @@ Placeholders: `{{client_name}}`, `{{email_address}}`, `{{phone_number}}`, `{{cam
 
 ```bash
 # Usually done in Settings › Test send. CLI equivalent:
-# Gmail: save the sender in Settings › Gmail first
+# Gmail: save the sender in Settings › Email first
 npm run gmail:test -- gmail-test --email you@example.com --consent
 npm run gmail:test -- gmail-test --live --approve gmail-test
 npm run gmail:confirm-test -- gmail-test --received
@@ -193,7 +193,7 @@ Message statuses:
 
 ## Configuration
 
-**In the dashboard (Settings):** Gmail sender and [App Password](https://support.google.com/accounts/answer/185833), WhatsApp link, the country for local phone numbers, the pause between messages, and the test send. The App Password is encrypted (AES-256-GCM) with a key kept outside the project at `~/.config/message-blaster/secret.key`. Back that file up with the database; without it the saved password must be entered again. Values still left in an old `.env` are imported once on start.
+**In the dashboard (Settings):** the email sender, either Gmail with an [App Password](https://support.google.com/accounts/answer/185833) or a custom SMTP server (host, port, STARTTLS or SSL/TLS, username, password, From address and name), WhatsApp link, the country for local phone numbers, the pause between messages, and the test send. The App Password and SMTP password are encrypted (AES-256-GCM) with a key kept outside the project at `~/.config/message-blaster/secret.key`. Back that file up with the database; without it the saved password must be entered again. Values still left in an old `.env` are imported once on start.
 
 **In `.env`** (see `.env.example`):
 

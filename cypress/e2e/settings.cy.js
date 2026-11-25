@@ -1,7 +1,8 @@
 const noTest = { account: null, confirmed: false, latest: null };
+const noSmtp = { host: '', port: 587, security: 'starttls', user: '', from: '', fromName: '', passwordSet: false, passwordUnreadable: false };
 const settingsWith = (whatsapp, { gmail = {}, dryRun = true } = {}) => ({
     dryRun,
-    gmail: { user: '', passwordSet: false, passwordUnreadable: false, test: noTest, ...gmail },
+    gmail: { provider: 'gmail', user: '', passwordSet: false, passwordUnreadable: false, smtp: noSmtp, test: noTest, ...gmail },
     whatsapp: { test: noTest, ...whatsapp },
     sending: { country: 'MY', delaySeconds: 10 },
     countries: ['MY', 'SG'],
@@ -37,7 +38,7 @@ describe('Settings', () => {
             expect(body.gmail).to.include({ user: 'sender@gmail.com', passwordSet: true, passwordUnreadable: false });
             expect(JSON.stringify(body)).not.to.contain('abcdefghijklmnop');
         });
-        cy.contains('#toast', 'Gmail settings saved');
+        cy.contains('#toast', 'Email settings saved');
         cy.get('#gmail-password').should('have.value', '').and('have.attr', 'placeholder', 'Saved. Leave blank to keep it.');
 
         cy.get('#settings [data-close]').click();
@@ -45,7 +46,7 @@ describe('Settings', () => {
         cy.get('#gmail-user').should('have.value', 'sender@gmail.com');
         cy.get('#gmail-user').clear().type('team@gmail.com');
         cy.get('#gmail-save').click();
-        cy.contains('#toast', 'Gmail settings saved');
+        cy.contains('#toast', 'Email settings saved');
         cy.request('/api/settings').its('body.gmail').should('include', { user: 'team@gmail.com', passwordSet: true });
     });
 
@@ -64,6 +65,44 @@ describe('Settings', () => {
         cy.get('#gmail-verify').click();
         cy.get('#gmail-status').should('be.visible').and('contain', 'Gmail accepted these details.');
         cy.get('#gmail-error').should('not.be.visible');
+    });
+
+    it('switches to a custom SMTP server, validates it and keeps the Gmail details', () => {
+        cy.get('#tab-gmail').should('contain', 'Email');
+        cy.get('#provider-smtp').should('not.be.visible');
+        cy.contains('#settings .segmented label', 'SMTP').click();
+        cy.get('#provider-gmail').should('not.be.visible');
+        cy.get('#provider-smtp').should('be.visible');
+        cy.get('#smtp-port').should('have.value', '587');
+        cy.get('#smtp-security').select('tls');
+        cy.get('#smtp-port').should('have.value', '465');
+
+        cy.get('#smtp-user').type('apikey');
+        cy.get('#gmail-save').click();
+        cy.get('#smtpHost-error').should('have.text', 'Enter the SMTP server, like smtp.example.com.');
+        cy.get('#smtpPassword-error').should('have.text', 'Enter the SMTP password.');
+        cy.get('#smtpFrom-error').should('have.text', 'Enter the address emails are sent from.');
+
+        cy.intercept('PUT', '/api/settings/gmail').as('save');
+        cy.get('#smtp-host').type('smtp.example.com');
+        cy.get('#smtp-password').type('smtp secret');
+        cy.get('#smtp-from').type('team@example.com');
+        cy.get('#smtp-from-name').type('Team');
+        cy.get('#gmail-save').click();
+        cy.wait('@save').its('response.body.gmail').should(gmail => {
+            expect(gmail.provider).to.equal('smtp');
+            expect(gmail.smtp).to.include({ host: 'smtp.example.com', port: 465, security: 'tls', user: 'apikey', from: 'team@example.com', fromName: 'Team', passwordSet: true });
+            expect(JSON.stringify(gmail)).not.to.contain('smtp secret');
+        });
+        cy.contains('#toast', 'Email settings saved');
+        cy.get('#smtp-password').should('have.value', '').and('have.attr', 'placeholder', 'Saved. Leave blank to keep it.');
+        cy.get('#gmail-verify').should('not.be.disabled');
+
+        cy.get('#settings [data-close]').click();
+        cy.get('#open-settings').click();
+        cy.get('#settings input[name="emailProvider"][value="smtp"]').should('be.checked');
+        cy.get('#smtp-host').should('have.value', 'smtp.example.com');
+        cy.get('#gmail-test input').should('have.value', 'team@example.com');
     });
 
     it('saves the sending country and pause between messages', () => {
@@ -145,7 +184,7 @@ describe('Settings', () => {
 
     it('keeps the test send locked until Gmail is saved and live sending is on', () => {
         cy.get('#gmail-test .test-badge').should('have.text', 'Required');
-        cy.get('#gmail-test').should('contain', 'Save your Gmail address and App Password first.');
+        cy.get('#gmail-test').should('contain', 'Save your email sender details first.');
         cy.get('#gmail-test input').should('be.disabled');
 
         cy.get('#gmail-user').type('sender@gmail.com');

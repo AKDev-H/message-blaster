@@ -84,8 +84,8 @@ function campaignToRun(store: Store, id: string, mode: RunMode, reportRecovery: 
 
 async function sendWithGmail(delivery: Delivery): Promise<RunResult | undefined> {
     using shutdown = watchShutdown();
-    const { GmailService } = await import('./gmail.service.js');
-    const smtp = new GmailService(delivery.env);
+    const { EmailService } = await import('./email.service.js');
+    const smtp = new EmailService(delivery.env);
     const accountId = checkSenderAccount(delivery, smtp.accountId);
     await smtp.connect();
     if (shutdown.signal.aborted) return undefined;
@@ -137,7 +137,7 @@ function checkSenderAccount({ store, campaign }: Delivery, accountId: string | u
     if (!accountId) throw new Error(`The ${label} account identity is unavailable.`);
     if (campaign.accountId !== null && campaign.accountId !== accountId) throw new ConflictError(`Campaign is bound to a different ${label} account.`);
     if (!campaign.isTest && !store.hasConfirmedTest(accountId)) {
-        throw new Error(`Send and confirm a test in Settings › ${label} before starting a campaign (or run ${campaign.channel}:test and ${campaign.channel}:confirm-test).`);
+        throw new Error(`Send and confirm a test in Settings › ${campaign.channel === 'gmail' ? 'Email' : label} before starting a campaign (or run ${campaign.channel}:test and ${campaign.channel}:confirm-test).`);
     }
     return accountId;
 }

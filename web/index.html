@@ -387,7 +387,7 @@
             <button type="button" class="icon-button" data-close aria-label="Close settings"><i data-icon="x"></i></button>
         </header>
         <div class="settings-tabs" id="settings-tabs" role="tablist" aria-label="Settings sections">
-            <button type="button" role="tab" id="tab-gmail" data-tab="gmail" aria-controls="panel-gmail" aria-selected="true"><i data-brand="gmail" data-size="14"></i>Gmail</button>
+            <button type="button" role="tab" id="tab-gmail" data-tab="gmail" aria-controls="panel-gmail" aria-selected="true"><span class="channel-icon"><i data-icon="mail" data-size="14"></i></span>Email</button>
             <button type="button" role="tab" id="tab-whatsapp" data-tab="whatsapp" aria-controls="panel-whatsapp" aria-selected="false" tabindex="-1"><i data-brand="whatsapp" data-size="14"></i>WhatsApp</button>
             <button type="button" role="tab" id="tab-sending" data-tab="sending" aria-controls="panel-sending" aria-selected="false" tabindex="-1"><span class="channel-icon"><i data-icon="timer" data-size="14"></i></span>Sending</button>
         </div>
@@ -395,24 +395,82 @@
 
         <form class="settings-panel" id="panel-gmail" role="tabpanel" aria-labelledby="tab-gmail" novalidate>
             <div class="dialog-body">
-                <p class="settings-intro">Campaign emails are sent from this Gmail account using a Google App Password.</p>
-                <div class="field">
-                    <label for="gmail-user">Gmail address</label>
-                    <input id="gmail-user" type="email" autocomplete="off" placeholder="you@gmail.com" aria-describedby="gmailUser-error">
-                    <p class="field-error" id="gmailUser-error" aria-live="polite" hidden></p>
-                </div>
                 <div class="field">
                     <div class="label-row">
-                        <label for="gmail-password">App Password</label>
-                        <a class="text-link" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer"><span>Create one</span><i data-icon="external-link" data-size="13"></i></a>
+                        <span id="email-provider-label">Send with</span>
+                        <div class="segmented" role="radiogroup" aria-labelledby="email-provider-label">
+                            <label><input type="radio" name="emailProvider" value="gmail" checked><span><i data-brand="gmail" data-size="12"></i>Gmail App Password</span></label>
+                            <label><input type="radio" name="emailProvider" value="smtp"><span><i data-icon="server" data-size="12"></i>SMTP</span></label>
+                        </div>
                     </div>
-                    <input id="gmail-password" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="gmail-password-help gmailPassword-error">
-                    <p class="field-help" id="gmail-password-help">Requires 2-Step Verification on the Google account.</p>
-                    <p class="field-error" id="gmailPassword-error" aria-live="polite" hidden></p>
                 </div>
-                <p class="settings-success" id="gmail-status" role="status" hidden><i data-icon="shield-check" data-size="15"></i>Gmail accepted these details.</p>
+                <div class="email-provider" id="provider-gmail">
+                    <p class="settings-intro">Campaign emails are sent from this Gmail account using a Google App Password.</p>
+                    <div class="field">
+                        <label for="gmail-user">Gmail address</label>
+                        <input id="gmail-user" type="email" autocomplete="off" placeholder="you@gmail.com" aria-describedby="gmailUser-error">
+                        <p class="field-error" id="gmailUser-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field">
+                        <div class="label-row">
+                            <label for="gmail-password">App Password</label>
+                            <a class="text-link" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer"><span>Create one</span><i data-icon="external-link" data-size="13"></i></a>
+                        </div>
+                        <input id="gmail-password" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="gmail-password-help gmailPassword-error">
+                        <p class="field-help" id="gmail-password-help">Requires 2-Step Verification on the Google account.</p>
+                        <p class="field-error" id="gmailPassword-error" aria-live="polite" hidden></p>
+                    </div>
+                </div>
+                <div class="email-provider" id="provider-smtp" hidden>
+                    <p class="settings-intro">Campaign emails are sent through your own mail server, such as Microsoft 365, Zoho, SendGrid or your host.</p>
+                    <div class="field-pair">
+                        <div class="field">
+                            <label for="smtp-host">SMTP server</label>
+                            <input id="smtp-host" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="smtp.example.com" aria-describedby="smtpHost-error">
+                            <p class="field-error" id="smtpHost-error" aria-live="polite" hidden></p>
+                        </div>
+                        <div class="field">
+                            <label for="smtp-port">Port</label>
+                            <input id="smtp-port" type="number" min="1" max="65535" step="1" inputmode="numeric" aria-describedby="smtpPort-error">
+                            <p class="field-error" id="smtpPort-error" aria-live="polite" hidden></p>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="smtp-security">Security</label>
+                        <select id="smtp-security" aria-describedby="smtp-security-help smtpSecurity-error">
+                            <option value="starttls">STARTTLS (usually port 587)</option>
+                            <option value="tls">SSL/TLS (usually port 465)</option>
+                        </select>
+                        <p class="field-help" id="smtp-security-help">The connection is always encrypted.</p>
+                        <p class="field-error" id="smtpSecurity-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field">
+                        <label for="smtp-user">Username</label>
+                        <input id="smtp-user" type="text" autocomplete="off" spellcheck="false" placeholder="Often your email address" aria-describedby="smtp-user-help smtpUser-error">
+                        <p class="field-help" id="smtp-user-help">Leave blank if the server doesn’t require sign-in.</p>
+                        <p class="field-error" id="smtpUser-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field">
+                        <label for="smtp-password">Password</label>
+                        <input id="smtp-password" type="password" autocomplete="new-password" spellcheck="false" aria-describedby="smtp-password-help smtpPassword-error">
+                        <p class="field-help" id="smtp-password-help">Saved encrypted.</p>
+                        <p class="field-error" id="smtpPassword-error" aria-live="polite" hidden></p>
+                    </div>
+                    <div class="field-pair">
+                        <div class="field">
+                            <label for="smtp-from">From address</label>
+                            <input id="smtp-from" type="email" autocomplete="off" placeholder="you@example.com" aria-describedby="smtpFrom-error">
+                            <p class="field-error" id="smtpFrom-error" aria-live="polite" hidden></p>
+                        </div>
+                        <div class="field">
+                            <label for="smtp-from-name">From name <span class="field-optional">Optional</span></label>
+                            <input id="smtp-from-name" type="text" autocomplete="off" maxlength="120" placeholder="Your team">
+                        </div>
+                    </div>
+                </div>
+                <p class="settings-success" id="gmail-status" role="status" hidden><i data-icon="shield-check" data-size="15"></i><span id="gmail-status-text">Gmail accepted these details.</span></p>
                 <p class="inline-error" id="gmail-error" role="alert" hidden></p>
-                <section class="test-send" id="gmail-test" aria-label="Gmail test send"></section>
+                <section class="test-send" id="gmail-test" aria-label="Email test send"></section>
             </div>
             <footer class="dialog-footer">
                 <button type="button" class="button secondary" id="gmail-verify"><i data-icon="plug"></i><span>Check connection</span></button>
@@ -454,7 +512,7 @@
                         <input id="sending-delay" type="number" min="0" max="3600" step="1" inputmode="numeric" aria-describedby="sending-delay-help delay-error">
                         <span>seconds</span>
                     </div>
-                    <p class="field-help" id="sending-delay-help">Longer pauses look more natural to Gmail and WhatsApp.</p>
+                    <p class="field-help" id="sending-delay-help">Longer pauses look more natural to mail servers and WhatsApp.</p>
                     <p class="field-error" id="delay-error" aria-live="polite" hidden></p>
                 </div>
                 <p class="inline-error" id="sending-error" role="alert" hidden></p>

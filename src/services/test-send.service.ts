@@ -1,9 +1,9 @@
 import type { Environment } from '../config/env.js';
 import type { Campaign, MessageRecord, Store } from '../store/index.js';
 import { CAMPAIGN_CHANNEL_LABELS, type CampaignChannel, type MessageStatus } from '../types/index.js';
-import { normalizeEmail } from '../utils/email.util.js';
 import type { ImportRow } from './excel/columns.js';
 import { prepareRows } from './campaign/prepare-rows.js';
+import { emailAccountId, type EmailSettings } from './email-account.js';
 import { whatsappAccountId } from './whatsapp/account.js';
 
 export type TestPhase = 'sending' | 'sent' | 'failed';
@@ -27,8 +27,8 @@ type RunStatus = (id: string) => { active: boolean; error?: string };
 
 const SENT_STATUSES: readonly MessageStatus[] = ['SENT', 'DELIVERED', 'READ'];
 
-export function senderAccountId(channel: CampaignChannel, env: Pick<Environment, 'GMAIL_USER'>, whatsappNumber?: string): string | null {
-    if (channel === 'gmail') return gmailAccountId(env.GMAIL_USER);
+export function senderAccountId(channel: CampaignChannel, env: EmailSettings, whatsappNumber?: string): string | null {
+    if (channel === 'gmail') return emailAccountId(env);
     const digits = whatsappNumber?.replaceAll(/\D/gu, '');
     return (digits && whatsappAccountId(`${digits}@s.whatsapp.net`)) ?? null;
 }
@@ -45,14 +45,6 @@ export function testState(store: Store, channel: CampaignChannel, account: strin
     const campaign = store.latestTestCampaign(channel);
     const confirmed = account !== null && store.hasConfirmedTest(account);
     return { account, confirmed, latest: campaign ? latestTest(store, campaign, account, run) : null };
-}
-
-function gmailAccountId(user: string): string | null {
-    try {
-        return user ? `gmail:${normalizeEmail(user)}` : null;
-    } catch {
-        return null;
-    }
 }
 
 function testRow(id: string, channel: CampaignChannel, recipient: string): ImportRow {

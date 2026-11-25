@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { loadEnv } from '../src/config/env.js';
+import { DEFAULT_SETTINGS, loadEnv } from '../src/config/env.js';
 import { openDatabase } from '../src/database/connection.js';
 import { decryptSecret, encryptSecret, loadSecretKey, SecretError } from '../src/services/secret.service.js';
 import { loadSettings, migrateSettings, saveSettings } from '../src/services/settings.service.js';
@@ -36,7 +36,7 @@ test('saved settings encrypt the App Password and ignore invalid values', async 
     saveSettings(db, env, { GMAIL_USER: 'me@gmail.com', GMAIL_APP_PASSWORD: 'abcdefghijklmnop', DEFAULT_COUNTRY: 'SG', MESSAGE_DELAY_MS: 2_500 });
     assert.match(String(stored('GMAIL_APP_PASSWORD')), /^enc:v1:/u);
     assert.deepEqual(loadSettings(env, db), {
-        settings: { GMAIL_USER: 'me@gmail.com', GMAIL_APP_PASSWORD: 'abcdefghijklmnop', DEFAULT_COUNTRY: 'SG', MESSAGE_DELAY_MS: 2_500 },
+        settings: { ...DEFAULT_SETTINGS, GMAIL_USER: 'me@gmail.com', GMAIL_APP_PASSWORD: 'abcdefghijklmnop', DEFAULT_COUNTRY: 'SG', MESSAGE_DELAY_MS: 2_500 },
         unreadable: [],
     });
 
@@ -60,6 +60,26 @@ test('migration imports values left in .env once and encrypts plain-text secrets
     assert.equal(settings.GMAIL_USER, 'old@gmail.com');
     assert.equal(settings.MESSAGE_DELAY_MS, 3_000);
     assert.deepEqual(migrateSettings(db, env, legacy), [], 'running again changes nothing');
+});
+
+test('SMTP settings round-trip with an encrypted password and reject invalid values', async (t) => {
+    const { env, db, stored } = await setup(t);
+    const smtp = {
+        EMAIL_PROVIDER: 'smtp', SMTP_HOST: 'smtp.example.com', SMTP_PORT: 465, SMTP_SECURITY: 'tls',
+        SMTP_USER: 'apikey', SMTP_PASSWORD: 'pass with spaces', SMTP_FROM: 'team@example.com', SMTP_FROM_NAME: 'Team',
+    } as const;
+    saveSettings(db, env, smtp);
+    assert.match(String(stored('SMTP_PASSWORD')), /^enc:v1:/u);
+    assert.deepEqual(loadSettings(env, db).settings, { ...DEFAULT_SETTINGS, ...smtp }, 'passwords keep their spaces');
+
+    db.prepare("UPDATE settings SET value = 'pop3' WHERE key = 'EMAIL_PROVIDER'").run();
+    db.prepare("UPDATE settings SET value = '70000' WHERE key = 'SMTP_PORT'").run();
+    db.prepare("UPDATE settings SET value = 'plain' WHERE key = 'SMTP_SECURITY'").run();
+    const { settings, unreadable } = loadSettings(env, db);
+    assert.equal(settings.EMAIL_PROVIDER, 'gmail');
+    assert.equal(settings.SMTP_PORT, 587);
+    assert.equal(settings.SMTP_SECURITY, 'starttls');
+    assert.deepEqual(unreadable.sort(), ['EMAIL_PROVIDER', 'SMTP_PORT', 'SMTP_SECURITY']);
 });
 
 test('a corrupt key file is reported instead of being replaced', async (t) => {
